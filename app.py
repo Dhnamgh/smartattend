@@ -5,6 +5,7 @@ import math
 import io
 import requests
 import msal
+from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
 # ================= 1. CẤU HÌNH GIAO DIỆN & TÔNG MÀU XANH FACEBOOK =================
 st.set_page_config(page_title="Điểm Danh Số - Hệ Thống Trường", layout="wide")
@@ -48,13 +49,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Danh sách các Lớp sinh viên
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
 
+# Danh sách 3 Cơ sở kèm Tọa độ tâm chuẩn & Địa chỉ chi tiết
 CAMPUSES = {
-    "Cơ sở 1": {"lat": 10.77688, "lng": 106.70081, "allowed_ips": ["118.69.1.1", "118.69.1.2"]},
-    "Cơ sở 2": {"lat": 10.78012, "lng": 106.69850, "allowed_ips": ["203.162.1.1"]},
-    "Cơ sở 3": {"lat": 10.78500, "lng": 106.70500, "allowed_ips": ["171.244.1.1"]}
+    "CS1": {
+        "name": "Cơ sở 1",
+        "address": "217 Hồng Bàng, Phường 11, Quận 5, TP.HCM",
+        "lat": 10.75542, 
+        "lng": 106.66258,
+        "allowed_ips": ["118.69.1.1", "118.69.1.2"]
+    },
+    "CS2": {
+        "name": "Cơ sở 2",
+        "address": "201 Nguyễn Chí Thanh, Phường 12, Quận 5, TP.HCM",
+        "lat": 10.75831, 
+        "lng": 106.66014,
+        "allowed_ips": ["203.162.1.1"]
+    },
+    "CS3": {
+        "name": "Cơ sở 3",
+        "address": "41 Đinh Tiên Hoàng, Phường Bến Nghé, Quận 1, TP.HCM",
+        "lat": 10.78532, 
+        "lng": 106.70012,
+        "allowed_ips": ["171.244.1.1"]
+    }
 }
 
 # ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API =================
@@ -68,15 +87,13 @@ def get_azure_token():
         app = msal.ConfidentialClientApplication(
             client_id, authority=authority, client_credential=client_secret
         )
-        
-        # Scope phù hợp cho quyền Delegated / Application
         scopes = ["https://graph.microsoft.com/.default"]
         result = app.acquire_token_for_client(scopes=scopes)
         
         if "access_token" in result:
             return result["access_token"]
         else:
-            st.error("Không thể lấy token xác thực. Vui lòng kiểm tra lại cấu hình Secrets!")
+            st.error("Không thể lấy token xác thực. Vui lòng kiểm tra Secrets!")
             return None
     except Exception as e:
         st.error(f"Lỗi cấu hình Azure Secrets: {str(e)}")
@@ -87,12 +104,10 @@ def read_excel_from_onedrive(file_path):
     token = get_azure_token()
     if not token:
         return pd.DataFrame()
-    
     try:
         user_email = st.secrets["azure"]["USER_EMAIL"]
         url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/content"
         headers = {"Authorization": f"Bearer {token}"}
-        
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             return pd.read_excel(io.BytesIO(response.content), dtype=str, engine="openpyxl")
@@ -105,7 +120,6 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
     token = get_azure_token()
     if not token:
         return False
-    
     try:
         user_email = st.secrets["azure"]["USER_EMAIL"]
         url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
@@ -114,7 +128,6 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
             "Content-Type": "application/json"
         }
         payload = {"values": [row_values]}
-        
         response = requests.post(url, headers=headers, json=payload)
         return response.status_code in [200, 201]
     except Exception:
@@ -129,7 +142,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 # ================= 3. GIAO DIỆN HỆ THỐNG =================
-st.title("ĐIỂM DANH SỐ - TỰ ĐỘNG ĐỒNG BỘ ONEDRIVE")
+st.title("ĐIỂM DANH SỐ - TỰ ĐỘNG ĐỊNH VỊ CƠ SỞ")
 
 tabs = st.tabs(["THỰC HIỆN ĐIỂM DANH", "NỘP MINH CHỨNG / BÁO NGHỈ PHÉP", "DASHBOARD BÁO CÁO"])
 
@@ -164,10 +177,7 @@ with tabs[0]:
             else:
                 sv_class_path = f"ATTENDANCE/DATA/SV/{selected_class}.xlsx"
                 sv_df = read_excel_from_onedrive(sv_class_path)
-                
-                if sv_df.empty:
-                    st.warning(f"Chưa tìm thấy file danh sách lớp {selected_class}.xlsx trên OneDrive.")
-                else:
+                if not sv_df.empty:
                     match = sv_df[sv_df["MSSV"] == input_id]
                     if not match.empty:
                         fetched_name = match.iloc[0].get("Họ và tên", "")
@@ -180,38 +190,73 @@ with tabs[0]:
         st.text_input("Bộ môn:", value=fetched_sub, disabled=True)
         if user_group == "Sinh viên":
             st.text_input("Tên học phần:", value=fetched_course, disabled=True)
-            
-        campus_selected = st.selectbox("Chọn Cơ sở điểm danh:", list(CAMPUSES.keys()))
 
     with col2:
-        st.markdown("**Xác thực Vị trí & Mạng nội bộ**")
-        user_lat = st.number_input("Vĩ độ GPS (Latitude):", value=10.77685, format="%.5f")
-        user_lng = st.number_input("Kinh độ GPS (Longitude):", value=106.70080, format="%.5f")
-        user_ip = st.text_input("IP Wi-Fi kết nối:", value="118.69.1.1")
+        st.markdown("**Xác thực Tự động (GPS & Mạng Wi-Fi)**")
+        
+        # 1. TỰ ĐỘNG LẤY TỌA ĐỘ GPS TỪ TRÌNH DUYỆT THIẾT BỊ
+        location = get_geolocation()
+        user_lat = None
+        user_lng = None
+        
+        if location and 'coords' in location:
+            user_lat = location['coords']['latitude']
+            user_lng = location['coords']['longitude']
+            st.caption(f"Tọa độ GPS thiết bị: `{user_lat:.5f}, {user_lng:.5f}`")
+        else:
+            st.warning("Đang kết nối GPS... Vui lòng CHỌN 'CHO PHÉP' (Allow) khi trình duyệt hỏi quyền vị trí!")
+
+        # 2. TỰ ĐỘNG LẤY IP PUBLIC
+        user_ip = streamlit_js_eval(
+            js_expressions="fetch('https://api.ipify.org?format=json').then(r => r.json()).then(data => data.ip)", 
+            key='get_user_ip'
+        )
+        if user_ip:
+            st.caption(f"Địa chỉ IP kết nối: `{user_ip}`")
         
         action_type = st.radio("Thao tác ca làm việc:", ["Vào ca (Check-in)", "Ra ca (Check-out)"], horizontal=True)
-        
-        target = CAMPUSES[campus_selected]
-        dist = calculate_distance(user_lat, user_lng, target["lat"], target["lng"])
-        ip_valid = user_ip in target["allowed_ips"]
-        
-        st.write(f"Khoảng cách đến tâm cơ sở: **{dist:.1f} m**")
-        
-        if dist <= 50:
-            st.markdown('<div class="status-box-success">Vị trí hợp lệ (Trong phạm vi 50m)</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div class="status-box-error">Vị trí KHÔNG hợp lệ (Vượt quá 50m)</div>', unsafe_allow_html=True)
 
-        if ip_valid:
-            st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Kết nối đúng Wi-Fi trường)</div>', unsafe_allow_html=True)
+        # 3. TỰ ĐỘNG NHẬN DIỆN CƠ SỞ THEO BÁN KÍNH 50M
+        detected_campus_key = None
+        detected_campus_info = None
+        min_distance = 999999
+        
+        if user_lat is not None and user_lng is not None:
+            for c_key, c_val in CAMPUSES.items():
+                d = calculate_distance(user_lat, user_lng, c_val["lat"], c_val["lng"])
+                if d < min_distance:
+                    min_distance = d
+                if d <= 50:
+                    detected_campus_key = c_key
+                    detected_campus_info = c_val
+                    break
+
+        # HIỂN THỊ KẾT QUẢ TỰ ĐỘNG
+        if detected_campus_info:
+            campus_display_name = f"{detected_campus_info['name']} ({detected_campus_info['address']})"
+            st.success(f"Tự động nhận diện: **{detected_campus_info['name']}**")
+            st.info(f"Địa chỉ: {detected_campus_info['address']}\nKhoảng cách: {min_distance:.1f} m (Hợp lệ <= 50m)")
         else:
-            st.markdown('<div class="status-box-error">IP Mạng KHÔNG hợp lệ (Không phải Wi-Fi trường)</div>', unsafe_allow_html=True)
+            campus_display_name = "Không xác định"
+            if min_distance < 999999:
+                st.markdown(f'<div class="status-box-error">Bị từ chối: Bạn đang ở ngoài bán kính 50m của cả 3 Cơ sở (Khoảng cách tới cơ sở gần nhất: {min_distance:.1f} m)</div>', unsafe_allow_html=True)
+            else:
+                st.info("Đang chờ dữ liệu GPS để xác định Cơ sở...")
+
+        # Kiểm tra IP Wi-Fi
+        ip_valid = False
+        if detected_campus_info and user_ip:
+            ip_valid = user_ip in detected_campus_info["allowed_ips"]
+            if ip_valid:
+                st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Đúng Wi-Fi trường)</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi nội bộ cơ sở này</div>', unsafe_allow_html=True)
 
     if st.button("XÁC NHẬN ĐIỂM DANH", type="primary", use_container_width=True):
         if len(input_id) != 8 or not fetched_name:
             st.error("Mã số 8 chữ số không tồn tại trong danh sách lớp trên OneDrive!")
-        elif dist > 50:
-            st.error("Điểm danh bị từ chối do vị trí nằm ngoài phạm vi 50m!")
+        elif not detected_campus_info:
+            st.error("Điểm danh thất bại: Bạn phải có mặt trong bán kính 50m của một trong 3 Cơ sở!")
         else:
             now = datetime.now()
             status = "Đúng giờ"
@@ -232,14 +277,14 @@ with tabs[0]:
 
             row_data = [
                 input_id, fetched_name, user_group, fetched_unit, unit_sub_display,
-                campus_selected, now.strftime("%Y-%m-%d %H:%M:%S"), action_type,
-                round(dist, 1), user_ip, status, note
+                campus_display_name, now.strftime("%Y-%m-%d %H:%M:%S"), action_type,
+                round(min_distance, 1), user_ip if user_ip else "N/A", status, note
             ]
             
             success = append_row_to_onedrive_excel("ATTENDANCE/DATA/LichSu_DiemDanh.xlsx", "BangDiemDanh", row_data)
             
             if success:
-                st.success(f"Ghi nhận và đồng bộ thành công lên OneDrive lúc {now.strftime('%H:%M:%S')}. Trạng thái: {status}")
+                st.success(f"Ghi nhận thành công tại {detected_campus_info['name']} lúc {now.strftime('%H:%M:%S')}. Trạng thái: {status}")
             else:
                 st.error("Lỗi khi ghi dữ liệu vào file Excel trên OneDrive!")
 
