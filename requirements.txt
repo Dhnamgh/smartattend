@@ -1,6 +1,7 @@
 streamlit
 pandas
 openpyxl
-msal
 requests
+msal
+plotly
 streamlit-js-eval
