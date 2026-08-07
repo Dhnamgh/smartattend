@@ -53,6 +53,7 @@ CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26
 
 MAX_ALLOWED_RADIUS = 100.0 
 
+# Tọa độ GPS đã được cập nhật chính xác theo Google Maps
 CAMPUSES = {
     "CS1": {
         "name": "Cơ sở 1",
@@ -64,15 +65,15 @@ CAMPUSES = {
     "CS2": {
         "name": "Cơ sở 2",
         "address": "201 Nguyễn Chí Thanh, Phường 12, Quận 5, TP.HCM",
-        "lat": 10.758310, 
-        "lng": 106.660140,
+        "lat": 10.757973, 
+        "lng": 106.661271,
         "allowed_ips": ["203.162.1.1"]
     },
     "CS3": {
         "name": "Cơ sở 3",
         "address": "41 Đinh Tiên Hoàng, Phường Bến Nghé, Quận 1, TP.HCM",
-        "lat": 10.785320, 
-        "lng": 106.700120,
+        "lat": 10.785324, 
+        "lng": 106.702328,
         "allowed_ips": ["171.244.1.1"]
     }
 }
@@ -80,9 +81,10 @@ CAMPUSES = {
 # ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API =================
 def get_azure_token():
     try:
-        tenant_id = st.secrets["azure"]["TENANT_ID"]
-        client_id = st.secrets["azure"]["CLIENT_ID"]
-        client_secret = st.secrets["azure"]["CLIENT_SECRET"]
+        azure_sec = st.secrets["azure"]
+        tenant_id = azure_sec.get("tenant_id") or azure_sec.get("TENANT_ID")
+        client_id = azure_sec.get("client_id") or azure_sec.get("CLIENT_ID")
+        client_secret = azure_sec.get("client_secret") or azure_sec.get("CLIENT_SECRET")
         
         authority = f"https://login.microsoftonline.com/{tenant_id}"
         app = msal.ConfidentialClientApplication(
@@ -100,13 +102,27 @@ def get_azure_token():
         st.error(f"Lỗi cấu hình Azure Secrets: {str(e)}")
         return None
 
+def build_graph_url(file_path, is_table_add=False, table_name=""):
+    # Tự động chọn URL truy cập theo drive_id hoặc email
+    if "onedrive" in st.secrets and "drive_id" in st.secrets["onedrive"]:
+        drive_id = st.secrets["onedrive"]["drive_id"]
+        base_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path}:"
+    elif "USER_EMAIL" in st.secrets["azure"] or "user_email" in st.secrets["azure"]:
+        user_email = st.secrets["azure"].get("USER_EMAIL") or st.secrets["azure"].get("user_email")
+        base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:"
+    else:
+        base_url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:"
+
+    if is_table_add:
+        return f"{base_url}/workbook/tables/{table_name}/rows/add"
+    return f"{base_url}/content"
+
 def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
     if not token:
         return pd.DataFrame()
     try:
-        user_email = st.secrets["azure"]["USER_EMAIL"]
-        url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/content"
+        url = build_graph_url(file_path)
         headers = {"Authorization": f"Bearer {token}"}
         response = requests.get(url, headers=headers)
         
@@ -123,7 +139,7 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
             df.columns = [str(c).strip().replace('\xa0', '') for c in df.columns]
             return df
         else:
-            st.error(f"Không thể truy cập file trên OneDrive (Mã lỗi HTTP: {response.status_code}). Đường dẫn: {file_path}")
+            st.error(f"Không thể truy cập file trên OneDrive (HTTP {response.status_code}). Đường dẫn: {file_path}")
             return pd.DataFrame()
     except Exception as e:
         st.error(f"Lỗi xử lý file Excel: {str(e)}")
@@ -134,8 +150,7 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
     if not token:
         return False
     try:
-        user_email = st.secrets["azure"]["USER_EMAIL"]
-        url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
+        url = build_graph_url(file_path, is_table_add=True, table_name=table_name)
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
@@ -182,7 +197,6 @@ with tabs[0]:
         
         if len(input_id) == 8:
             if user_group == "Cán bộ / Viên chức / Giảng viên":
-                # Đọc file CBVC.xlsx tại OGSM/ATTENDANCE/DATA/
                 target_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                 if not target_df.empty:
                     col_msvc = target_df.columns[0]
@@ -198,7 +212,6 @@ with tabs[0]:
                         fetched_unit = match.iloc[0][col_unit] if col_unit else ""
                         fetched_sub = match.iloc[0][col_sub] if col_sub else ""
             else:
-                # Đọc file sinh viên tại OGSM/ATTENDANCE/DATA/SV/
                 sv_class_path = f"OGSM/ATTENDANCE/DATA/SV/{selected_class}.xlsx"
                 target_df = read_excel_from_onedrive(sv_class_path)
                 if not target_df.empty:
@@ -308,7 +321,6 @@ with tabs[0]:
                 round(min_distance, 1), user_ip if user_ip else "N/A", status, note
             ]
             
-            # Ghi dữ liệu vào OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx
             success = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx", "BangDiemDanh", row_data)
             
             if success:
