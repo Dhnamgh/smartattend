@@ -422,13 +422,18 @@ with tabs[0]:
                 if success:
                     st.success(f"Ghi nhận thành công cho {sub_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
-# ----------------- TAB 2: MINH CHỨNG (ĐÃ TÍCH HỢP TỰ ĐỘNG LƯU ONEDRIVE) -----------------
+# ----------------- TAB 2: MINH CHỨNG (HỖ TRỢ TỰ ĐỘNG TRA CỨU SINH VIÊN) -----------------
 with tabs[1]:
     st.subheader("Nộp minh chứng đi trễ / Báo xin nghỉ phép")
     
     with st.form("form_minh_chung"):
         mc_group = st.radio("Đối tượng nộp:", ["Giảng viên/Viên chức", "Sinh viên"], horizontal=True)
-        mc_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8).strip()
+        
+        mc_class = ""
+        if mc_group == "Sinh viên":
+            mc_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST, key="mc_class_select")
+            
+        mc_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001").strip()
         mc_type = st.selectbox("Loại yêu cầu:", ["Nghỉ phép Buổi Sáng", "Nghỉ phép Buổi Chiều", "Nghỉ phép Cả Ngày", "Minh chứng Đi trễ > 30 phút"])
         mc_reason = st.text_area("Lý do chi tiết:")
         mc_file = st.file_uploader("Tải lên file đi kèm (Ảnh / PDF):", type=["png", "jpg", "jpeg", "pdf"])
@@ -439,36 +444,42 @@ with tabs[1]:
             if len(mc_id) != 8 or not mc_reason:
                 st.error("Vui lòng nhập đầy đủ Mã số (8 chữ số) và Lý do chi tiết!")
             else:
-                # 1. Tra cứu họ tên người nộp
+                # TRA CỨU HỌ TÊN VÀ ĐƠN VỊ TỰ ĐỘNG THEO ĐỐI TƯỢNG
                 applicant_name = "N/A"
                 applicant_unit = "N/A"
                 
                 if mc_group == "Giảng viên/Viên chức":
                     cbvc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                     if not cbvc_df.empty:
-                        cbvc_df["CLEAN_ID"] = cbvc_df.iloc[:, 0].astype(str).str.strip().str.zfill(8)
+                        cbvc_df["CLEAN_ID"] = cbvc_df.iloc[:, 0].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
                         match = cbvc_df[cbvc_df["CLEAN_ID"] == mc_id]
                         if not match.empty:
                             applicant_name = match.iloc[0, 1]
                             applicant_unit = match.iloc[0, 2] if len(match.columns) > 2 else ""
-                
-                # 2. Xử lý tải file đính kèm lên OneDrive
+                else:
+                    # Tra cứu Sinh viên theo Lớp chọn
+                    sv_df = read_excel_from_onedrive(f"OGSM/ATTENDANCE/DATA/SV/{mc_class}.xlsx")
+                    if not sv_df.empty:
+                        sv_df["CLEAN_ID"] = sv_df.iloc[:, 0].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
+                        match = sv_df[sv_df["CLEAN_ID"] == mc_id]
+                        if not match.empty:
+                            applicant_name = match.iloc[0, 1]
+                            applicant_unit = f"{match.iloc[0, 2]} - Lớp {mc_class}" if len(match.columns) > 2 else f"Lớp {mc_class}"
+
+                # TẢI FILE LÊN ONEDRIVE
                 file_saved_name = "Không có file"
                 if mc_file is not None:
                     file_ext = mc_file.name.split(".")[-1]
                     timestamp_str = now_vn.strftime("%Y%m%d_%H%M%S")
                     file_saved_name = f"{mc_id}_{timestamp_str}.{file_ext}"
                     
-                    # Upload file lên thư mục OGSM/ATTENDANCE/DATA/MINHCHUNG_FILES/
-                    upload_success = upload_file_to_onedrive(
+                    upload_file_to_onedrive(
                         "OGSM/ATTENDANCE/DATA/MINHCHUNG_FILES", 
                         file_saved_name, 
                         mc_file.getvalue()
                     )
-                    if not upload_success:
-                        st.warning("Không thể tải file đính kèm lên OneDrive, nhưng đơn sẽ vẫn được ghi nhận.")
 
-                # 3. Ghi thông tin đơn vào file MinhChung_NghiPhep.xlsx
+                # GHI VÀO FILE MinhChung_NghiPhep.xlsx
                 mc_cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Loại Yêu Cầu", "Lý Do", "File Minh Chứng", "Thời Gian Gửi", "Trạng Thái Duyệt"]
                 mc_row = [
                     mc_id, str(applicant_name), mc_group, str(applicant_unit),
@@ -478,9 +489,9 @@ with tabs[1]:
                 saved_mc = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx", mc_row, custom_cols=mc_cols)
                 
                 if saved_mc:
-                    st.success("Yêu cầu minh chứng / báo nghỉ của bạn đã được ghi nhận thành công vào hệ thống và chuyển đến Lãnh đạo duyệt!")
+                    st.success(f"Yêu cầu xin nghỉ / minh chứng của Sinh viên {applicant_name} ({mc_id}) đã được ghi nhận thành công!")
                 else:
-                    st.error("Lỗi khi ghi nhận dữ liệu đơn lên OneDrive!")
+                    st.error("Lỗi khi gửi dữ liệu lên OneDrive!")
 
 # ----------------- TAB 3: DASHBOARD -----------------
 with tabs[2]:
@@ -519,7 +530,6 @@ with tabs[2]:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
     else:
-        # BÁO CÁO MINH CHỨNG
         mc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx")
         if mc_df.empty:
             st.info("Chưa có đơn xin nghỉ phép / minh chứng nào được gửi lên hệ thống.")
