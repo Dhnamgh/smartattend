@@ -77,13 +77,29 @@ CAMPUSES = {
     }
 }
 
-# ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API =================
+# ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API (DELEGATED/APPLICATION HYBRID) =================
 def get_azure_token():
     try:
         tenant_id = st.secrets["azure"]["TENANT_ID"]
         client_id = st.secrets["azure"]["CLIENT_ID"]
         client_secret = st.secrets["azure"]["CLIENT_SECRET"]
         
+        # Kiểm tra nếu cấu hình Refresh Token (Luồng Delegated không cần cấp quyền Admin)
+        if "REFRESH_TOKEN" in st.secrets["azure"] and st.secrets["azure"]["REFRESH_TOKEN"]:
+            refresh_token = st.secrets["azure"]["REFRESH_TOKEN"]
+            token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+            payload = {
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'grant_type': 'refresh_token',
+                'refresh_token': refresh_token,
+                'scope': 'files.readwrite.all offline_access'
+            }
+            res = requests.post(token_url, data=payload)
+            if res.status_code == 200:
+                return res.json().get("access_token")
+        
+        # Nếu không có Refresh Token, chạy theo luồng Application mặc định
         authority = f"https://login.microsoftonline.com/{tenant_id}"
         app = msal.ConfidentialClientApplication(
             client_id, authority=authority, client_credential=client_secret
@@ -94,26 +110,29 @@ def get_azure_token():
         if "access_token" in result:
             return result["access_token"]
         else:
-            st.error("Không thể lấy token xác thực Azure!")
+            st.error("Không thể lấy Token xác thực!")
             return None
     except Exception as e:
         st.error(f"Lỗi cấu hình Azure Secrets: {str(e)}")
         return None
 
-# BỎ DÒNG CACHE ĐỂ ĐỌC TRỰC TIẾP FILE MỚI NHẤT TRÊN ONEDRIVE
 def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
     if not token:
         return pd.DataFrame()
     try:
-        user_email = st.secrets["azure"]["USER_EMAIL"]
-        url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/content"
+        # Đường dẫn API cho cả tài khoản cá nhân hoặc dùng User Email
+        if "USER_EMAIL" in st.secrets["azure"] and st.secrets["azure"]["USER_EMAIL"]:
+            user_email = st.secrets["azure"]["USER_EMAIL"]
+            url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/content"
+        else:
+            url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:/content"
+            
         headers = {"Authorization": f"Bearer {token}"}
         response = requests.get(url, headers=headers)
+        
         if response.status_code == 200:
             excel_bytes = io.BytesIO(response.content)
-            
-            # Đọc file Excel không qua cache
             if sheet_name:
                 try:
                     df = pd.read_excel(excel_bytes, sheet_name=sheet_name, dtype=str, engine="openpyxl")
@@ -125,7 +144,7 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
             df.columns = [str(c).strip().replace('\xa0', '') for c in df.columns]
             return df
         else:
-            st.warning(f"Không thể truy cập file trên OneDrive (Mã lỗi HTTP: {response.status_code}). Đường dẫn: {file_path}")
+            st.error(f"Không thể truy cập file trên OneDrive (Mã lỗi HTTP: {response.status_code}).")
             return pd.DataFrame()
     except Exception as e:
         st.error(f"Lỗi xử lý file Excel: {str(e)}")
@@ -136,8 +155,12 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
     if not token:
         return False
     try:
-        user_email = st.secrets["azure"]["USER_EMAIL"]
-        url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
+        if "USER_EMAIL" in st.secrets["azure"] and st.secrets["azure"]["USER_EMAIL"]:
+            user_email = st.secrets["azure"]["USER_EMAIL"]
+            url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
+        else:
+            url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
+            
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
