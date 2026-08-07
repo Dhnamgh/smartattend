@@ -113,7 +113,10 @@ def read_excel_from_onedrive(file_path):
         headers = {"Authorization": f"Bearer {token}"}
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            return pd.read_excel(io.BytesIO(response.content), dtype=str, engine="openpyxl")
+            df = pd.read_excel(io.BytesIO(response.content), dtype=str, engine="openpyxl")
+            # Làm sạch tên các cột (xóa khoảng trắng thừa)
+            df.columns = df.columns.str.strip()
+            return df
         else:
             return pd.DataFrame()
     except Exception:
@@ -144,6 +147,14 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
+def find_column_name(df, possible_names):
+    """Hàm hỗ trợ tìm tên cột linh hoạt trong Excel"""
+    for col in df.columns:
+        for p in possible_names:
+            if p.lower() in col.lower():
+                return col
+    return None
+
 # ================= 3. GIAO DIỆN HỆ THỐNG =================
 st.title("ĐIỂM DANH SỐ - TỰ ĐỘNG ĐỊNH VỊ CƠ SỞ")
 
@@ -171,32 +182,52 @@ with tabs[0]:
         if len(input_id) == 8:
             if user_group == "Cán bộ / Viên chức / Giảng viên":
                 cbvc_df = read_excel_from_onedrive("ATTENDANCE/DATA/CBVC.xlsx")
-                if not cbvc_df.empty and "MSVC" in cbvc_df.columns:
-                    # Chuẩn hóa mã số 8 chữ số (tránh mất số 0 đầu trong Excel)
-                    cbvc_df["MSVC_CLEAN"] = cbvc_df["MSVC"].astype(str).str.strip().str.zfill(8)
-                    match = cbvc_df[cbvc_df["MSVC_CLEAN"] == input_id]
-                    if not match.empty:
-                        fetched_name = match.iloc[0].get("Họ và tên", "")
-                        fetched_unit = match.iloc[0].get("Đơn vị", "")
-                        fetched_sub = match.iloc[0].get("Bộ môn", "")
+                if not cbvc_df.empty:
+                    # Tìm tên cột Mã số, Họ tên, Đơn vị, Bộ môn linh hoạt
+                    id_col = find_column_name(cbvc_df, ["MSVC", "MSCB", "Mã số", "Mã VC", "Mã cán bộ", "ID"])
+                    name_col = find_column_name(cbvc_df, ["Họ và tên", "Họ tên", "Tên", "Ho va ten"])
+                    unit_col = find_column_name(cbvc_df, ["Đơn vị", "Khoa", "Trường", "Phòng"])
+                    sub_col = find_column_name(cbvc_df, ["Bộ môn", "Tổ bộ môn", "Phòng ban"])
+                    
+                    if id_col:
+                        cbvc_df["ID_CLEAN"] = cbvc_df[id_col].astype(str).str.strip().str.zfill(8)
+                        match = cbvc_df[cbvc_df["ID_CLEAN"] == input_id]
+                        if not match.empty:
+                            fetched_name = match.iloc[0].get(name_col, "") if name_col else ""
+                            fetched_unit = match.iloc[0].get(unit_col, "") if unit_col else ""
+                            fetched_sub = match.iloc[0].get(sub_col, "") if sub_col else ""
+                        else:
+                            st.warning(f"Mã số {input_id} không có trong file CBVC.xlsx.")
+                    else:
+                        st.error("File CBVC.xlsx thiếu cột Mã số (MSVC/MSCB).")
             else:
                 sv_class_path = f"ATTENDANCE/DATA/SV/{selected_class}.xlsx"
                 sv_df = read_excel_from_onedrive(sv_class_path)
-                if not sv_df.empty and "MSSV" in sv_df.columns:
-                    # Chuẩn hóa mã số 8 chữ số
-                    sv_df["MSSV_CLEAN"] = sv_df["MSSV"].astype(str).str.strip().str.zfill(8)
-                    match = sv_df[sv_df["MSSV_CLEAN"] == input_id]
-                    if not match.empty:
-                        fetched_name = match.iloc[0].get("Họ và tên", "")
-                        fetched_unit = match.iloc[0].get("Đơn vị (Trường/Khoa)", "")
-                        fetched_sub = match.iloc[0].get("Bộ môn giảng", "")
-                        fetched_course = match.iloc[0].get("Tên học phần", "")
+                if not sv_df.empty:
+                    id_col = find_column_name(sv_df, ["MSSV", "Mã số", "Mã SV", "Mã sinh viên", "ID"])
+                    name_col = find_column_name(sv_df, ["Họ và tên", "Họ tên", "Tên", "Ho va ten"])
+                    unit_col = find_column_name(sv_df, ["Đơn vị", "Khoa", "Trường"])
+                    sub_col = find_column_name(sv_df, ["Bộ môn", "Bộ môn giảng"])
+                    course_col = find_column_name(sv_df, ["Học phần", "Tên học phần", "Môn học"])
+                    
+                    if id_col:
+                        sv_df["ID_CLEAN"] = sv_df[id_col].astype(str).str.strip().str.zfill(8)
+                        match = sv_df[sv_df["ID_CLEAN"] == input_id]
+                        if not match.empty:
+                            fetched_name = match.iloc[0].get(name_col, "") if name_col else ""
+                            fetched_unit = match.iloc[0].get(unit_col, "") if unit_col else ""
+                            fetched_sub = match.iloc[0].get(sub_col, "") if sub_col else ""
+                            fetched_course = match.iloc[0].get(course_col, "") if course_col else ""
+                        else:
+                            st.warning(f"Mã số {input_id} không có trong file lớp {selected_class}.xlsx.")
+                    else:
+                        st.error(f"File {selected_class}.xlsx thiếu cột Mã sinh viên (MSSV).")
 
-        st.text_input("Họ và tên:", value=fetched_name, disabled=True)
-        st.text_input("Đơn vị (Trường/Khoa):", value=fetched_unit, disabled=True)
-        st.text_input("Bộ môn:", value=fetched_sub, disabled=True)
+        st.text_input("Họ và tên:", value=str(fetched_name), disabled=True)
+        st.text_input("Đơn vị (Trường/Khoa):", value=str(fetched_unit), disabled=True)
+        st.text_input("Bộ môn:", value=str(fetched_sub), disabled=True)
         if user_group == "Sinh viên":
-            st.text_input("Tên học phần:", value=fetched_course, disabled=True)
+            st.text_input("Tên học phần:", value=str(fetched_course), disabled=True)
 
     with col2:
         st.markdown("**Xác thực Tự động (GPS & Mạng Wi-Fi)**")
@@ -283,7 +314,7 @@ with tabs[0]:
                         note = "Vượt quá 30 phút. Yêu cầu nộp đơn xin nghỉ phép / minh chứng."
 
             row_data = [
-                input_id, fetched_name, user_group, fetched_unit, unit_sub_display,
+                input_id, str(fetched_name), user_group, str(fetched_unit), str(unit_sub_display),
                 campus_display_name, now.strftime("%Y-%m-%d %H:%M:%S"), action_type,
                 round(min_distance, 1), user_ip if user_ip else "N/A", status, note
             ]
@@ -291,7 +322,7 @@ with tabs[0]:
             success = append_row_to_onedrive_excel("ATTENDANCE/DATA/LichSu_DiemDanh.xlsx", "BangDiemDanh", row_data)
             
             if success:
-                st.success(f"Ghi nhận thành công tại {detected_campus_info['name']} lúc {now.strftime('%H:%M:%S')}. Trạng thái: {status}")
+                st.success(f"Ghi nhận thành công cho {fetched_name} tại {detected_campus_info['name']} lúc {now.strftime('%H:%M:%S')}. Trạng thái: {status}")
             else:
                 st.error("Lỗi khi ghi dữ liệu vào file Excel trên OneDrive!")
 
