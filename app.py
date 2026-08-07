@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import math
 import io
+import time
 import requests
 import msal
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
@@ -83,30 +84,33 @@ st.markdown("""
 
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
 
-MAX_ALLOWED_RADIUS = 100.0 
+# Siết chặt bán kính cho phép xuống đúng 70.0 mét
+MAX_ALLOWED_RADIUS = 70.0 
 
-# Tọa độ GPS đã cập nhật chính xác theo vị trí thực tế của 3 cơ sở
+# Danh sách IP chung cho mạng nội bộ nhà trường
+SCHOOL_SHARED_IPS = ["118.69.1.1", "118.69.1.2", "103.180.97.163", "103.180.97.161", "203.162.1.1", "171.244.1.1"]
+
 CAMPUSES = {
     "CS1": {
         "name": "Cơ sở 1",
         "address": "217 Hồng Bàng, Phường 11, Quận 5, TP.HCM",
         "lat": 10.755061,  
         "lng": 106.662962, 
-        "allowed_ips": ["118.69.1.1", "118.69.1.2", "103.180.97.163", "103.180.97.161"]
+        "allowed_ips": SCHOOL_SHARED_IPS
     },
     "CS2": {
         "name": "Cơ sở 2",
         "address": "201 Nguyễn Chí Thanh, Phường 12, Quận 5, TP.HCM",
         "lat": 10.757973, 
         "lng": 106.661271,
-        "allowed_ips": ["203.162.1.1"]
+        "allowed_ips": SCHOOL_SHARED_IPS
     },
     "CS3": {
         "name": "Cơ sở 3",
         "address": "41 Đinh Tiên Hoàng, Phường Bến Nghé, Quận 1, TP.HCM",
         "lat": 10.785324, 
         "lng": 106.702328,
-        "allowed_ips": ["171.244.1.1"]
+        "allowed_ips": SCHOOL_SHARED_IPS
     }
 }
 
@@ -182,9 +186,7 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
         content_url = f"{base_url}/content"
         headers_get = {"Authorization": f"Bearer {token}"}
         
-        # 1. Đọc file Excel từ OneDrive về
         get_res = requests.get(content_url, headers=headers_get)
-        
         cols = ["MSCB", "HoTen", "DoiTuong", "DonVi", "BoMon", "CoSo", "ThoiGian", "ThaoTac", "KhoangCach", "IP", "TrangThai", "GhiChu"]
         
         if get_res.status_code == 200:
@@ -197,30 +199,32 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
         else:
             df_existing = pd.DataFrame(columns=cols)
         
-        # 2. Tạo dòng dữ liệu mới
         new_row_df = pd.DataFrame([row_values], columns=cols[:len(row_values)])
-        
-        # 3. Nối dòng mới vào danh sách
         df_updated = pd.concat([df_existing, new_row_df], ignore_index=True)
         
-        # 4. Xuất ra đệm Bytes
         output_buffer = io.BytesIO()
         with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
             df_updated.to_excel(writer, index=False, sheet_name='Sheet1')
         output_buffer.seek(0)
         
-        # 5. Upload ghi đè lên OneDrive bằng PUT (Tránh lỗi 403 WAC Token)
         headers_put = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         }
-        put_res = requests.put(content_url, headers=headers_put, data=output_buffer.getvalue())
         
-        if put_res.status_code in [200, 201]:
-            return True
-        else:
-            st.error(f"Lỗi upload dữ liệu lên OneDrive: HTTP {put_res.status_code}")
-            return False
+        max_retries = 3
+        for attempt in range(max_retries):
+            put_res = requests.put(content_url, headers=headers_put, data=output_buffer.getvalue())
+            if put_res.status_code in [200, 201]:
+                return True
+            elif put_res.status_code == 423:
+                time.sleep(1.5 * (attempt + 1))
+            else:
+                st.error(f"Lỗi upload dữ liệu lên OneDrive: HTTP {put_res.status_code}")
+                return False
+                
+        st.error("File Excel trên OneDrive đang bị mở hoặc khóa chỉnh sửa. Vui lòng thử lại sau vài giây!")
+        return False
 
     except Exception as e:
         st.error(f"Lỗi xử lý file Excel: {str(e)}")
@@ -324,30 +328,45 @@ with tabs[0]:
         
         action_type = st.radio("Thao tác ca làm việc:", ["Vào ca (Check-in)", "Ra ca (Check-out)"], horizontal=True)
 
-        detected_campus_key = None
-        detected_campus_info = None
-        min_distance = 999999
-        
+        # Tính khoảng cách GPS thực tế tới từng cơ sở
+        distances = {}
+        auto_detected_key = None
         if user_lat is not None and user_lng is not None:
             for c_key, c_val in CAMPUSES.items():
                 d = calculate_distance(user_lat, user_lng, c_val["lat"], c_val["lng"])
-                if d < min_distance:
-                    min_distance = d
-                if d <= MAX_ALLOWED_RADIUS:
-                    detected_campus_key = c_key
-                    detected_campus_info = c_val
-                    break
+                distances[c_key] = d
+                
+            # Ưu tiên nhận diện CS1 nếu nằm trong bán kính 70m
+            if distances.get("CS1", 9999) <= MAX_ALLOWED_RADIUS:
+                auto_detected_key = "CS1"
+            else:
+                closest_key = min(distances, key=distances.get)
+                if distances[closest_key] <= MAX_ALLOWED_RADIUS:
+                    auto_detected_key = closest_key
+
+        campus_options = ["Tự động nhận diện", "Cơ sở 1 (217 Hồng Bàng)", "Cơ sở 2 (201 Nguyễn Chí Thanh)", "Cơ sở 3 (41 Đinh Tiên Hoàng)"]
+        selected_campus_option = st.selectbox("Cơ sở điểm danh:", campus_options)
+
+        final_campus_key = None
+        if selected_campus_option == "Tự động nhận diện":
+            final_campus_key = auto_detected_key
+        elif "Cơ sở 1" in selected_campus_option:
+            final_campus_key = "CS1"
+        elif "Cơ sở 2" in selected_campus_option:
+            final_campus_key = "CS2"
+        elif "Cơ sở 3" in selected_campus_option:
+            final_campus_key = "CS3"
+
+        detected_campus_info = CAMPUSES.get(final_campus_key) if final_campus_key else None
+        curr_dist = distances.get(final_campus_key, 0.0) if final_campus_key else 0.0
 
         if detected_campus_info:
             campus_display_name = f"{detected_campus_info['name']} ({detected_campus_info['address']})"
-            st.success(f"Tự động nhận diện: **{detected_campus_info['name']}**")
-            st.info(f"Địa chỉ: {detected_campus_info['address']} Khoảng cách: {min_distance:.1f} m (Hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
+            st.success(f"Đã xác nhận: **{detected_campus_info['name']}**")
+            st.info(f"Địa chỉ: {detected_campus_info['address']}\nKhoảng cách GPS: {curr_dist:.1f} m (Hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
         else:
             campus_display_name = "Không xác định"
-            if min_distance < 999999:
-                st.markdown(f'<div class="status-box-error">Bị từ chối: Bạn đang ở ngoài bán kính {int(MAX_ALLOWED_RADIUS)}m của cả 3 Cơ sở (Khoảng cách tới cơ sở gần nhất: {min_distance:.1f} m)</div>', unsafe_allow_html=True)
-            else:
-                st.info("Đang chờ dữ liệu GPS để xác định Cơ sở...")
+            st.markdown(f'<div class="status-box-error">Vui lòng chọn Cơ sở điểm danh hợp lệ ở menu phía trên!</div>', unsafe_allow_html=True)
 
         ip_valid = False
         if detected_campus_info and user_ip:
@@ -361,7 +380,7 @@ with tabs[0]:
         if len(input_id) != 8 or not fetched_name:
             st.error("Mã số 8 chữ số không tồn tại trong danh sách dữ liệu trên OneDrive!")
         elif not detected_campus_info:
-            st.error(f"Điểm danh thất bại: Bạn phải có mặt trong bán kính {int(MAX_ALLOWED_RADIUS)}m của một trong 3 Cơ sở!")
+            st.error("Điểm danh thất bại: Vui lòng chọn Cơ sở điểm danh hợp lệ!")
         else:
             now = datetime.now()
             status = "Đúng giờ"
@@ -383,7 +402,7 @@ with tabs[0]:
             row_data = [
                 input_id, str(fetched_name), user_group, str(fetched_unit), str(unit_sub_display),
                 campus_display_name, now.strftime("%Y-%m-%d %H:%M:%S"), action_type,
-                round(min_distance, 1), user_ip if user_ip else "N/A", status, note
+                round(curr_dist, 1), user_ip if user_ip else "N/A", status, note
             ]
             
             success = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx", "BangDiemDanh", row_data)
