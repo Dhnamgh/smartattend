@@ -6,9 +6,10 @@ import io
 import time
 import requests
 import msal
+import plotly.express as px
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
-# ================= 1. CẤU HÌNH GIAO DIỆN =================
+# ================= 1. CẤU HÌNH GIAO DIỆN & STYLE =================
 st.set_page_config(page_title="HỆ THỐNG ĐIỂM DANH UMP", layout="wide")
 
 st.markdown("""
@@ -209,22 +210,19 @@ with tabs[0]:
     now_vn = get_vietnam_now()
     
     with col1:
-        user_group = st.radio("Nhóm đối tượng", ["Giảng viên/Viên chức", "Sinh viên"], horizontal=True)
-        sub_role = "Giảng viên"
-        selected_class = ""
+        # TÁCH RÕ 3 ĐỐI TƯỢNG RIÊNG BIỆT
+        user_role = st.radio("Chọn đối tượng điểm danh:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True)
         
-        if user_group == "Giảng viên/Viên chức":
-            sub_role = st.selectbox("Vai trò cụ thể:", ["Giảng viên", "Viên chức"])
-        else:
-            sub_role = "Sinh viên"
+        selected_class = ""
+        if user_role == "Sinh viên":
             selected_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST)
             
-        input_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001").strip()
+        input_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001", key="t1_id").strip()
         
         fetched_name, fetched_unit, fetched_sub, fetched_course = "", "", "", ""
         
         if len(input_id) == 8:
-            if user_group == "Giảng viên/Viên chức":
+            if user_role in ["Giảng viên", "Viên chức"]:
                 target_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                 if not target_df.empty:
                     col_msvc = target_df.columns[0]
@@ -256,14 +254,14 @@ with tabs[0]:
                         fetched_sub = match.iloc[0][col_sub] if col_sub else ""
                         fetched_course = match.iloc[0][col_course] if col_course else ""
 
-        st.text_input("Họ và tên:", value=str(fetched_name), disabled=True)
+        st.text_input("Họ và tên:", value=str(fetched_name if fetched_name else ("Mã số chưa chính xác" if len(input_id)==8 else "")), disabled=True)
         st.text_input("Đơn vị (Trường/Khoa):", value=str(fetched_unit), disabled=True)
         st.text_input("Bộ môn:", value=str(fetched_sub), disabled=True)
-        if user_group == "Sinh viên":
+        if user_role == "Sinh viên":
             st.text_input("Tên học phần:", value=str(fetched_course), disabled=True)
 
         start_lesson, end_lesson = 1, 1
-        if sub_role in ["Giảng viên", "Sinh viên"]:
+        if user_role in ["Giảng viên", "Sinh viên"]:
             st.markdown("**Đăng ký ca học/giảng dạy (Tiết 1 đến 10):**")
             valid_start_lessons = []
             for t in range(1, 11):
@@ -351,7 +349,7 @@ with tabs[0]:
                 "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
                 "Sinh viên": "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
             }
-            target_excel_path = file_map.get(sub_role, "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx")
+            target_excel_path = file_map.get(user_role, "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx")
             
             existing_df = read_excel_from_onedrive(target_excel_path)
             last_action, last_time_str = None, ""
@@ -365,7 +363,7 @@ with tabs[0]:
                     last_time_str = str(last_record.get("Thời Gian", ""))
 
             can_proceed = True
-            if sub_role in ["Giảng viên", "Sinh viên"]:
+            if user_role in ["Giảng viên", "Sinh viên"]:
                 s_h, s_m = LESSON_TIMES[start_lesson]["start"]
                 e_h, e_m = LESSON_TIMES[end_lesson]["end"]
                 sched_start = now_vn.replace(hour=s_h, minute=s_m, second=0, microsecond=0)
@@ -391,9 +389,9 @@ with tabs[0]:
             if can_proceed:
                 status = "Đúng giờ"
                 note = ""
-                unit_sub_display = f"{fetched_sub} ({selected_class})" if user_group == "Sinh viên" else fetched_sub
+                unit_sub_display = f"{fetched_sub} ({selected_class})" if user_role == "Sinh viên" else fetched_sub
 
-                if sub_role in ["Giảng viên", "Sinh viên"]:
+                if user_role in ["Giảng viên", "Sinh viên"]:
                     if action_type == "Vào ca (Check-in)":
                         if now_vn > sched_start + timedelta(minutes=15):
                             status = "Vào trễ"
@@ -413,33 +411,32 @@ with tabs[0]:
                         note = "Hoàn thành ca làm việc"
 
                 row_data = [
-                    input_id, str(fetched_name), sub_role, str(fetched_unit), str(unit_sub_display),
+                    input_id, str(fetched_name), user_role, str(fetched_unit), str(unit_sub_display),
                     campus_display_name, now_vn.strftime("%Y-%m-%d %H:%M:%S"), action_type,
                     round(curr_dist, 1), user_ip if user_ip else "N/A", status, note
                 ]
                 
                 success = append_row_to_onedrive_excel(target_excel_path, row_data)
                 if success:
-                    st.success(f"Ghi nhận thành công cho {sub_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
+                    st.success(f"Ghi nhận thành công cho {user_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
-# ----------------- TAB 2: MINH CHỨNG (TỰ ĐỘNG CHẶN NỐI ĐƠN NẾU ĐÃ ĐIỂM DANH TRONG NGÀY) -----------------
+# ----------------- TAB 2: MINH CHỨNG (TÁCH 3 ĐỐI TƯỢNG VÀ HIỂN THỊ HỌ TÊN CHUẨN XÁC) -----------------
 with tabs[1]:
     st.subheader("Nộp minh chứng đi trễ / Báo xin nghỉ phép")
     
-    mc_group = st.radio("Đối tượng nộp:", ["Giảng viên/Viên chức", "Sinh viên"], horizontal=True, key="mc_group_radio")
+    mc_user_role = st.radio("Chọn đối tượng nộp đơn:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True, key="mc_role_radio")
     
     mc_class = ""
-    if mc_group == "Sinh viên":
+    if mc_user_role == "Sinh viên":
         mc_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST, key="mc_class_select")
         
     mc_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001", key="mc_id_input").strip()
     
     mc_fetched_name = ""
     mc_fetched_unit = ""
-    mc_sub_role = "Giảng viên"
     
     if len(mc_id) == 8:
-        if mc_group == "Giảng viên/Viên chức":
+        if mc_user_role in ["Giảng viên", "Viên chức"]:
             cbvc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
             if not cbvc_df.empty:
                 col_msvc = cbvc_df.columns[0]
@@ -452,7 +449,6 @@ with tabs[1]:
                     mc_fetched_name = match.iloc[0][col_name]
                     mc_fetched_unit = match.iloc[0][col_unit] if col_unit else ""
         else:
-            mc_sub_role = "Sinh viên"
             sv_df = read_excel_from_onedrive(f"OGSM/ATTENDANCE/DATA/SV/{mc_class}.xlsx")
             if not sv_df.empty:
                 col_mssv = sv_df.columns[0]
@@ -465,21 +461,18 @@ with tabs[1]:
                     mc_fetched_name = match.iloc[0][col_name]
                     mc_fetched_unit = f"{match.iloc[0][col_unit]} - Lớp {mc_class}" if col_unit else f"Lớp {mc_class}"
 
-    # Hiển thị thông tin kiểm tra
     col_mc1, col_mc2 = st.columns(2)
     with col_mc1:
-        st.text_input("Họ và tên người nộp:", value=str(mc_fetched_name if mc_fetched_name else ("Mã số chưa đúng" if len(mc_id)==8 else "")), disabled=True, key="mc_name_disp")
+        st.text_input("Họ và tên người nộp:", value=str(mc_fetched_name if mc_fetched_name else ("Mã số chưa chính xác" if len(mc_id)==8 else "")), disabled=True, key="mc_name_disp")
     with col_mc2:
         st.text_input("Đơn vị / Lớp:", value=str(mc_fetched_unit if mc_fetched_unit else ""), disabled=True, key="mc_unit_disp")
 
-    # TRA CỨU XEM NGƯỜI NÀY ĐÃ ĐIỂM DANH TRONG NGÀY HÔM NAY CHƯA
     has_attended_today = False
     attendance_today_time = ""
     is_morning_attended = False
     is_afternoon_attended = False
 
     if len(mc_id) == 8 and mc_fetched_name:
-        # Kiểm tra file nhật ký điểm danh
         check_paths = [
             "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
             "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
@@ -499,7 +492,6 @@ with tabs[1]:
                     last_rec = records_today.iloc[-1]
                     attendance_today_time = str(last_rec.get("Thời Gian", ""))
                     
-                    # Phân loại điểm danh Sáng / Chiều
                     for _, r in records_today.iterrows():
                         t_str = str(r.get("Thời Gian", ""))
                         if len(t_str) >= 16:
@@ -515,7 +507,6 @@ with tabs[1]:
         btn_submit = st.form_submit_button("GỬI YÊU CẦU MINH CHỨNG")
         
         if btn_submit:
-            # KIỂM TRA CHẶT CHẼ TRƯỚC KHIN CHO NỘP ĐƠN
             if len(mc_id) != 8 or not mc_fetched_name:
                 st.error("Mã số 8 chữ số không tồn tại trong danh sách dữ liệu trên OneDrive! Vui lòng kiểm tra lại.")
             elif not mc_reason:
@@ -527,7 +518,6 @@ with tabs[1]:
             elif mc_type == "Nghỉ phép Buổi Chiều" and is_afternoon_attended:
                 st.error("Từ chối gửi đơn: Bạn đã có lượt điểm danh trong Buổi Chiều hôm nay! Không thể nộp đơn xin nghỉ buổi chiều.")
             else:
-                # TIẾN HÀNH UPLOAD FILE VÀ LƯU VÀO ONEDRIVE
                 file_saved_name = "Không có file"
                 if mc_file is not None:
                     file_ext = mc_file.name.split(".")[-1]
@@ -542,25 +532,26 @@ with tabs[1]:
 
                 mc_cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Loại Yêu Cầu", "Lý Do", "File Minh Chứng", "Thời Gian Gửi", "Trạng Thái Duyệt"]
                 mc_row = [
-                    mc_id, str(mc_fetched_name), mc_group, str(mc_fetched_unit),
+                    mc_id, str(mc_fetched_name), mc_user_role, str(mc_fetched_unit),
                     mc_type, mc_reason, file_saved_name, now_vn.strftime("%Y-%m-%d %H:%M:%S"), "Chờ duyệt"
                 ]
                 
                 saved_mc = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx", mc_row, custom_cols=mc_cols)
                 
                 if saved_mc:
-                    st.success(f"Yêu cầu xin nghỉ / minh chứng của {mc_group} {mc_fetched_name} ({mc_id}) đã được ghi nhận thành công!")
+                    st.success(f"Yêu cầu xin nghỉ / minh chứng của {mc_user_role} {mc_fetched_name} ({mc_id}) đã được ghi nhận thành công!")
                 else:
                     st.error("Lỗi khi gửi dữ liệu lên OneDrive!")
 
-# ----------------- TAB 3: DASHBOARD -----------------
+# ----------------- TAB 3: DASHBOARD BÁO CÁO (TÁCH RÕ 3 ĐỐI TƯỢNG + BIỂU ĐỒ ĐẸP MẮT) -----------------
 with tabs[2]:
-    st.subheader("Báo cáo và Thống kê Điểm danh & Minh chứng")
+    st.subheader("Báo cáo và Thống kê Trực quan")
     
-    view_mode = st.radio("Chọn loại báo cáo xem:", ["Nhật ký điểm danh", "Danh sách đơn minh chứng / nghỉ phép"], horizontal=True)
+    view_mode = st.radio("Chọn loại báo cáo:", ["Nhật ký điểm danh", "Danh sách đơn minh chứng / nghỉ phép"], horizontal=True, key="db_view_mode")
     
     if view_mode == "Nhật ký điểm danh":
-        selected_report_role = st.selectbox("Chọn nhóm dữ liệu:", ["Giảng viên", "Viên chức", "Sinh viên"])
+        selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
+        
         file_map_report = {
             "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
             "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
@@ -569,14 +560,56 @@ with tabs[2]:
         report_file_path = file_map_report[selected_report_role]
         
         history_df = read_excel_from_onedrive(report_file_path)
+        
         if history_df.empty:
             st.info(f"Chưa có dữ liệu điểm danh trên OneDrive cho nhóm **{selected_report_role}**.")
         else:
-            c1, c2, c3 = st.columns(3)
-            c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", len(history_df))
-            c2.metric("Lượt Đúng giờ", len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]))
-            c3.metric("Lượt Trễ / Về sớm", len(history_df[history_df["Trạng Thái"] != "Đúng giờ"]))
+            total_records = len(history_df)
+            on_time_count = len(history_df[history_df["Trạng Thái"] == "Đúng giờ"])
+            late_count = total_records - on_time_count
             
+            # Khung Metric tổng quan
+            c1, c2, c3 = st.columns(3)
+            c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", total_records)
+            c2.metric("Lượt Đúng giờ", on_time_count)
+            c3.metric("Lượt Trễ / Về sớm", late_count)
+            
+            st.markdown("---")
+            
+            # KHU VỰC HIỂN THỊ BIỂU ĐỒ THỐNG KÊ
+            col_chart1, col_chart2 = st.columns(2)
+            
+            with col_chart1:
+                st.markdown("**Biểu đồ Tỷ lệ Trạng thái Điểm danh**")
+                status_counts = history_df["Trạng Thái"].value_counts().reset_index()
+                status_counts.columns = ["Trạng Thái", "Số Lượng"]
+                fig_pie = px.pie(
+                    status_counts, 
+                    values="Số Lượng", 
+                    names="Trạng Thái", 
+                    hole=0.4,
+                    color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900"]
+                )
+                fig_pie.update_layout(margin=dict(t=20, b=20, l=20, r=20))
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+            with col_chart2:
+                st.markdown("**Biểu đồ Số lượt Điểm danh theo Đơn vị / Lớp**")
+                unit_col = "Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]
+                unit_counts = history_df[unit_col].value_counts().reset_index()
+                unit_counts.columns = [unit_col, "Số Lượt"]
+                fig_bar = px.bar(
+                    unit_counts, 
+                    x=unit_col, 
+                    y="Số Lượt", 
+                    color=unit_col,
+                    text_auto=True,
+                    color_discrete_sequence=px.colors.qualitative.Set2
+                )
+                fig_bar.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+            st.markdown("**Bảng Nhật ký Chi tiết:**")
             st.dataframe(history_df, use_container_width=True)
             
             buffer = io.BytesIO()
@@ -595,6 +628,23 @@ with tabs[2]:
             st.info("Chưa có đơn xin nghỉ phép / minh chứng nào được gửi lên hệ thống.")
         else:
             st.metric("Tổng số đơn đã gửi", len(mc_df))
+            
+            # Biểu đồ đơn nghỉ theo nhóm đối tượng
+            col_mc_chart1, col_mc_chart2 = st.columns(2)
+            with col_mc_chart1:
+                st.markdown("**Phân loại Đơn theo Đối tượng**")
+                role_mc_counts = mc_df["Đối Tượng"].value_counts().reset_index()
+                role_mc_counts.columns = ["Đối Tượng", "Số Lượng"]
+                fig_mc_role = px.pie(role_mc_counts, values="Số Lượng", names="Đối Tượng", hole=0.3)
+                st.plotly_chart(fig_mc_role, use_container_width=True)
+                
+            with col_mc_chart2:
+                st.markdown("**Phân loại theo Loại Yêu cầu**")
+                type_mc_counts = mc_df["Loại Yêu Cầu"].value_counts().reset_index()
+                type_mc_counts.columns = ["Loại Yêu Cầu", "Số Lượng"]
+                fig_mc_type = px.bar(type_mc_counts, x="Loại Yêu Cầu", y="Số Lượng", color="Loại Yêu Cầu", text_auto=True)
+                st.plotly_chart(fig_mc_type, use_container_width=True)
+
             st.dataframe(mc_df, use_container_width=True)
             
             buffer = io.BytesIO()
