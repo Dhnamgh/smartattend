@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import math
 import io
 import time
@@ -9,7 +9,7 @@ import msal
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
 # ================= 1. CẤU HÌNH GIAO DIỆN & TÔNG MÀU XANH FACEBOOK =================
-st.set_page_config(page_title="Điểm Danh Số - Hệ Thống Trường", layout="wide")
+st.set_page_config(page_title="HỆ THỐNG ĐIỂM DANH UMP", layout="wide")
 
 st.markdown("""
 <style>
@@ -31,23 +31,21 @@ st.markdown("""
         box-shadow: 0px 2px 5px rgba(0,0,0,0.3);
     }
     
-    /* Chỉnh chữ trong các ô thông tin bị disabled thành MÀU ĐEN ĐẬM, RÕ NÉT */
+    /* Chỉnh chữ trong các ô disabled thành MÀU ĐEN ĐẬM, ĐỌC RÕ 100% */
     input[disabled] {
-        -webkit-text-fill-color: #111111 !important;
-        color: #111111 !important;
-        font-weight: 600 !important;
-        background-color: #F8F9FA !important;
+        -webkit-text-fill-color: #000000 !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        background-color: #F0F2F5 !important;
         opacity: 1 !important;
     }
     
-    /* Chỉnh màu chữ Caption GPS và IP cho đậm rõ */
     .stCaption {
-        color: #222222 !important;
+        color: #111111 !important;
         font-weight: 600 !important;
         font-size: 14px !important;
     }
     
-    /* Chỉnh Nút bấm Điểm danh sang MÀU XANH NỔI BẬT */
     div.stButton > button {
         background-color: #1877F2 !important;
         color: #FFFFFF !important;
@@ -62,7 +60,6 @@ st.markdown("""
         color: #FFFFFF !important;
     }
 
-    /* Frame thông báo */
     .status-box-success {
         background-color: #E7F3FF;
         border-left: 5px solid #1877F2;
@@ -83,11 +80,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
-
-# Siết chặt bán kính kiểm tra GPS xuống 70m
 MAX_ALLOWED_RADIUS = 70.0 
-
-# Khai báo DẢI MẠNG (Prefix) của nhà trường - Chấp nhận mọi IP bắt đầu bằng các dải này
 ALLOWED_IP_PREFIXES = ["103.180.97.", "118.69.1.", "203.162.1.", "171.244.1."]
 
 CAMPUSES = {
@@ -111,7 +104,19 @@ CAMPUSES = {
     }
 }
 
-# ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API =================
+# Thời gian bắt đầu từng tiết học (Tiết 1 -> 12)
+LESSON_START_TIMES = {
+    1: (7, 0),   2: (7, 50),  3: (8, 50),  4: (9, 40),  5: (10, 30),
+    6: (13, 0),  7: (13, 50), 8: (14, 50), 9: (15, 40), 10: (16, 30),
+    11: (17, 30), 12: (18, 20)
+}
+
+# ================= 2. HÀM XỬ LÝ THỜI GIAN VIỆT NAM (UTC+7) =================
+def get_vietnam_now():
+    # Giờ chuẩn Việt Nam (UTC+7)
+    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=7)))
+
+# ================= 3. HÀM KẾT NỐI MICROSOFT GRAPH API =================
 def get_azure_token():
     try:
         azure_sec = st.secrets["azure"]
@@ -168,13 +173,11 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
             df.columns = [str(c).strip().replace('\xa0', '') for c in df.columns]
             return df
         else:
-            st.error(f"Không thể truy cập file trên OneDrive (HTTP {response.status_code}). Đường dẫn: {file_path}")
             return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Lỗi xử lý file Excel: {str(e)}")
+    except Exception:
         return pd.DataFrame()
 
-def append_row_to_onedrive_excel(file_path, table_name, row_values):
+def append_row_to_onedrive_excel(file_path, row_values):
     token = get_azure_token()
     if not token:
         return False
@@ -184,7 +187,7 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
         headers_get = {"Authorization": f"Bearer {token}"}
         
         get_res = requests.get(content_url, headers=headers_get)
-        cols = ["MSCB", "HoTen", "DoiTuong", "DonVi", "BoMon", "CoSo", "ThoiGian", "ThaoTac", "KhoangCach", "IP", "TrangThai", "GhiChu"]
+        cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Bộ Môn / Lớp", "Cơ Sở", "Thời Gian", "Thao Tác", "Khoảng Cách (m)", "Địa Chỉ IP", "Trạng Thái", "Ghi Chú"]
         
         if get_res.status_code == 200:
             excel_bytes = io.BytesIO(get_res.content)
@@ -235,8 +238,8 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-# ================= 3. GIAO DIỆN HỆ THỐNG =================
-st.title("ĐIỂM DANH SỐ - TỰ ĐỘNG ĐỊNH VỊ CƠ SỞ")
+# ================= 4. GIAO DIỆN HỆ THỐNG =================
+st.title("HỆ THỐNG ĐIỂM DANH UMP")
 
 tabs = st.tabs(["THỰC HIỆN ĐIỂM DANH", "NỘP MINH CHỨNG / BÁO NGHỈ PHÉP", "DASHBOARD BÁO CÁO"])
 
@@ -246,10 +249,15 @@ with tabs[0]:
     col1, col2 = st.columns(2)
     
     with col1:
-        user_group = st.radio("Nhóm đối tượng", ["Cán bộ / Viên chức / Giảng viên", "Sinh viên"], horizontal=True)
+        user_group = st.radio("Nhóm đối tượng", ["Giảng viên/Viên chức", "Sinh viên"], horizontal=True)
         
+        sub_role = "Giảng viên"
         selected_class = ""
-        if user_group == "Sinh viên":
+        
+        if user_group == "Giảng viên/Viên chức":
+            sub_role = st.selectbox("Vai trò cụ thể:", ["Giảng viên", "Viên chức"])
+        else:
+            sub_role = "Sinh viên"
             selected_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST)
             
         input_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001").strip()
@@ -259,10 +267,8 @@ with tabs[0]:
         fetched_sub = ""
         fetched_course = ""
         
-        target_df = pd.DataFrame()
-        
         if len(input_id) == 8:
-            if user_group == "Cán bộ / Viên chức / Giảng viên":
+            if user_group == "Giảng viên/Viên chức":
                 target_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                 if not target_df.empty:
                     col_msvc = target_df.columns[0]
@@ -296,11 +302,23 @@ with tabs[0]:
                         fetched_sub = match.iloc[0][col_sub] if col_sub else ""
                         fetched_course = match.iloc[0][col_course] if col_course else ""
 
+        # Hiển thị thông tin với chữ ĐEN ĐẬM
         st.text_input("Họ và tên:", value=str(fetched_name if fetched_name else ""), disabled=True)
         st.text_input("Đơn vị (Trường/Khoa):", value=str(fetched_unit if fetched_unit else ""), disabled=True)
         st.text_input("Bộ môn:", value=str(fetched_sub if fetched_sub else ""), disabled=True)
         if user_group == "Sinh viên":
             st.text_input("Tên học phần:", value=str(fetched_course if fetched_course else ""), disabled=True)
+
+        # Cấu hình Số tiết học cho Giảng viên & Sinh viên
+        start_lesson = 1
+        end_lesson = 1
+        if sub_role in ["Giảng viên", "Sinh viên"]:
+            st.markdown("**Đăng ký ca học/giảng dạy (Tiết học):**")
+            c_t1, c_t2 = st.columns(2)
+            with c_t1:
+                start_lesson = st.number_input("Từ tiết:", min_value=1, max_value=12, value=1)
+            with c_t2:
+                end_lesson = st.number_input("Đến tiết:", min_value=start_lesson, max_value=12, value=max(start_lesson, 2))
 
     with col2:
         st.markdown("**Xác thực Tự động (GPS & Mạng Wi-Fi)**")
@@ -332,7 +350,6 @@ with tabs[0]:
                 d = calculate_distance(user_lat, user_lng, c_val["lat"], c_val["lng"])
                 distances[c_key] = d
                 
-            # Ưu tiên nhận diện CS1 nếu nằm trong bán kính 70m
             if distances.get("CS1", 9999) <= MAX_ALLOWED_RADIUS:
                 auto_detected_key = "CS1"
             else:
@@ -364,7 +381,6 @@ with tabs[0]:
             campus_display_name = "Không xác định"
             st.markdown(f'<div class="status-box-error">Vui lòng chọn Cơ sở điểm danh hợp lệ ở menu phía trên!</div>', unsafe_allow_html=True)
 
-        # Đối soát IP theo dải Subnet (Prefix Matching)
         ip_valid = False
         if detected_campus_info and user_ip:
             ip_valid = any(user_ip.startswith(prefix) for prefix in ALLOWED_IP_PREFIXES)
@@ -379,33 +395,63 @@ with tabs[0]:
         elif not detected_campus_info:
             st.error("Điểm danh thất bại: Vui lòng chọn Cơ sở điểm danh hợp lệ!")
         else:
-            now = datetime.now()
+            now_vn = get_vietnam_now()
             status = "Đúng giờ"
+            note = ""
             unit_sub_display = f"{fetched_sub} ({selected_class})" if user_group == "Sinh viên" else fetched_sub
-            note = f"Học phần: {fetched_course}" if user_group == "Sinh viên" else ""
-            
-            if user_group == "Cán bộ / Viên chức / Giảng viên" and action_type == "Vào ca (Check-in)":
-                standard_start = now.replace(hour=7, minute=0, second=0)
-                if now > standard_start:
-                    late_min = (now - standard_start).total_seconds() / 60
-                    if late_min <= 30:
-                        status = "Đi trễ (Có bù giờ)"
-                        out_time = now.replace(hour=11, minute=0) + timedelta(minutes=late_min)
-                        note = f"Đi trễ {int(late_min)} phút. Giờ ra ca sáng bắt buộc: {out_time.strftime('%H:%M')}"
+
+            # LOGIC XÁC ĐỊNH ĐÚNG/TRỄ GIỜ CHO CÁC ĐỐI TƯỢNG
+            if sub_role in ["Giảng viên", "Sinh viên"]:
+                start_h, start_m = LESSON_START_TIMES.get(start_lesson, (7, 0))
+                sched_start = now_vn.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+                
+                # Tính giờ kết thúc (Mỗi tiết 45p + 5p nghỉ = 50 phút)
+                total_minutes = (end_lesson - start_lesson + 1) * 50
+                sched_end = sched_start + timedelta(minutes=total_minutes)
+                
+                if action_type == "Vào ca (Check-in)":
+                    if now_vn > sched_start + timedelta(minutes=15):
+                        status = "Vào trễ"
+                        note = f"Tiết {start_lesson} bắt đầu lúc {sched_start.strftime('%H:%M')}. Điểm danh lúc {now_vn.strftime('%H:%M')}."
                     else:
-                        status = "Trễ > 30 phút"
-                        note = "Vượt quá 30 phút. Yêu cầu nộp đơn xin nghỉ phép / minh chứng."
+                        note = f"Lịch học/dạy: Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end.strftime('%H:%M')})"
+                else: # Ra ca
+                    if now_vn < sched_end - timedelta(minutes=10):
+                        status = "Về sớm"
+                        note = f"Lịch tiết {end_lesson} kết thúc lúc {sched_end.strftime('%H:%M')}."
+                    else:
+                        note = f"Hoàn thành ca dạy/học Tiết {start_lesson}-{end_lesson}"
+
+            elif sub_role == "Viên chức":
+                # Quy định 4 tiếng/buổi (Sáng từ 07:00, Chiều từ 13:00)
+                if action_type == "Vào ca (Check-in)":
+                    base_start = now_vn.replace(hour=7, minute=0, second=0) if now_vn.hour < 12 else now_vn.replace(hour=13, minute=0, second=0)
+                    if now_vn > base_start + timedelta(minutes=15):
+                        status = "Đi trễ"
+                        note = f"Ca làm việc bắt đầu {base_start.strftime('%H:%M')}."
+                    else:
+                        note = "Ca làm việc 4 tiếng/buổi"
+                else: # Ra ca
+                    note = "Hoàn thành ca làm việc"
+
+            # BẢNG PHÂN LOẠI FILE LƯU TRỮ CHO 3 ĐỐI TƯỢNG RIÊNG BIỆT
+            file_map = {
+                "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
+                "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
+                "Sinh viên": "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
+            }
+            target_excel_path = file_map.get(sub_role, "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx")
 
             row_data = [
-                input_id, str(fetched_name), user_group, str(fetched_unit), str(unit_sub_display),
-                campus_display_name, now.strftime("%Y-%m-%d %H:%M:%S"), action_type,
+                input_id, str(fetched_name), sub_role, str(fetched_unit), str(unit_sub_display),
+                campus_display_name, now_vn.strftime("%Y-%m-%d %H:%M:%S"), action_type,
                 round(curr_dist, 1), user_ip if user_ip else "N/A", status, note
             ]
             
-            success = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx", "BangDiemDanh", row_data)
+            success = append_row_to_onedrive_excel(target_excel_path, row_data)
             
             if success:
-                st.success(f"Ghi nhận thành công cho {fetched_name} tại {detected_campus_info['name']} lúc {now.strftime('%H:%M:%S')}. Trạng thái: {status}")
+                st.success(f"Ghi nhận thành công cho {sub_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
 # ----------------- TAB 2: MINH CHỨNG -----------------
 with tabs[1]:
@@ -424,28 +470,38 @@ with tabs[1]:
 with tabs[2]:
     st.subheader("Báo cáo và Thống kê Điểm danh")
     
+    selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"])
+    
+    file_map_report = {
+        "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
+        "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
+        "Sinh viên": "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
+    }
+    
+    report_file_path = file_map_report[selected_report_role]
+    
     if st.button("CẬP NHẬT DỮ LIỆU TỪ ONEDRIVE"):
-        st.session_state.history_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx")
+        st.session_state.history_df = read_excel_from_onedrive(report_file_path)
 
-    history_df = st.session_state.get("history_df", read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx"))
+    history_df = read_excel_from_onedrive(report_file_path)
     
     if history_df.empty:
-        st.info("Chưa có dữ liệu điểm danh trên OneDrive hoặc chưa kết nối thành công.")
+        st.info(f"Chưa có dữ liệu điểm danh trên OneDrive cho nhóm **{selected_report_role}**.")
     else:
         c1, c2, c3 = st.columns(3)
-        c1.metric("Tổng lượt điểm danh", len(history_df))
-        c2.metric("Lượt Đúng giờ", len(history_df[history_df["TrangThai"] == "Đúng giờ"]))
-        c3.metric("Lượt Trễ / Vi phạm", len(history_df[history_df["TrangThai"] != "Đúng giờ"]))
+        c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", len(history_df))
+        c2.metric("Lượt Đúng giờ", len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]))
+        c3.metric("Lượt Trễ / Về sớm", len(history_df[history_df["Trạng Thái"] != "Đúng giờ"]))
         
         st.dataframe(history_df, use_container_width=True)
         
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            history_df.to_excel(writer, sheet_name='DiemDanh', index=False)
+            history_df.to_excel(writer, sheet_name='Sheet1', index=False)
             
         st.download_button(
-            label="XUẤT BÁO CÁO EXCEL (.XLSX)",
+            label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
             data=buffer.getvalue(),
-            file_name=f"Bao_Cao_Diem_Danh_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{get_vietnam_now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
