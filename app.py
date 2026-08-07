@@ -7,7 +7,7 @@ import requests
 import msal
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
-# ================= 1. CẤU HÌNH GIAO DIỆN & CHỈNH MÀU RÕ NÉT =================
+# ================= 1. CẤU HÌNH GIAO DIỆN & TÔNG MÀU XANH FACEBOOK =================
 st.set_page_config(page_title="Điểm Danh Số - Hệ Thống Trường", layout="wide")
 
 st.markdown("""
@@ -30,7 +30,7 @@ st.markdown("""
         box-shadow: 0px 2px 5px rgba(0,0,0,0.3);
     }
     
-    /* Chỉnh chữ trong các ô thông tin thành MÀU ĐEN ĐẬM, RÕ NÉT */
+    /* Chỉnh chữ trong các ô thông tin bị disabled thành MÀU ĐEN ĐẬM, RÕ NÉT */
     input[disabled] {
         -webkit-text-fill-color: #111111 !important;
         color: #111111 !important;
@@ -46,7 +46,7 @@ st.markdown("""
         font-size: 14px !important;
     }
     
-    /* Chỉnh Nút bấm Điểm danh sang MÀU XANH ĐẬM ĐẸP MẮT */
+    /* Chỉnh Nút bấm Điểm danh sang MÀU XANH NỔI BẬT */
     div.stButton > button {
         background-color: #1877F2 !important;
         color: #FFFFFF !important;
@@ -85,6 +85,7 @@ CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26
 
 MAX_ALLOWED_RADIUS = 100.0 
 
+# Tọa độ GPS đã cập nhật chính xác theo vị trí thực tế của 3 cơ sở
 CAMPUSES = {
     "CS1": {
         "name": "Cơ sở 1",
@@ -178,30 +179,51 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
         return False
     try:
         base_url = build_graph_url(file_path)
-        headers = {
+        content_url = f"{base_url}/content"
+        headers_get = {"Authorization": f"Bearer {token}"}
+        
+        # 1. Đọc file Excel từ OneDrive về
+        get_res = requests.get(content_url, headers=headers_get)
+        
+        cols = ["MSCB", "HoTen", "DoiTuong", "DonVi", "BoMon", "CoSo", "ThoiGian", "ThaoTac", "KhoangCach", "IP", "TrangThai", "GhiChu"]
+        
+        if get_res.status_code == 200:
+            excel_bytes = io.BytesIO(get_res.content)
+            try:
+                df_existing = pd.read_excel(excel_bytes, dtype=str, engine="openpyxl")
+                df_existing = df_existing.dropna(how='all')
+            except Exception:
+                df_existing = pd.DataFrame(columns=cols)
+        else:
+            df_existing = pd.DataFrame(columns=cols)
+        
+        # 2. Tạo dòng dữ liệu mới
+        new_row_df = pd.DataFrame([row_values], columns=cols[:len(row_values)])
+        
+        # 3. Nối dòng mới vào danh sách
+        df_updated = pd.concat([df_existing, new_row_df], ignore_index=True)
+        
+        # 4. Xuất ra đệm Bytes
+        output_buffer = io.BytesIO()
+        with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
+            df_updated.to_excel(writer, index=False, sheet_name='Sheet1')
+        output_buffer.seek(0)
+        
+        # 5. Upload ghi đè lên OneDrive bằng PUT (Tránh lỗi 403 WAC Token)
+        headers_put = {
             "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         }
+        put_res = requests.put(content_url, headers=headers_put, data=output_buffer.getvalue())
         
-        # Thử nghiệm 1: Ghi vào Table Excel
-        url_table = f"{base_url}/workbook/tables/{table_name}/rows/add"
-        payload = {"values": [row_values]}
-        res = requests.post(url_table, headers=headers, json=payload)
-        
-        if res.status_code in [200, 201]:
+        if put_res.status_code in [200, 201]:
             return True
-            
-        # Thử nghiệm 2: Nếu file chưa tạo Table, ghi vào Worksheet1
-        url_sheet = f"{base_url}/workbook/worksheets('Sheet1')/tables/{table_name}/rows/add"
-        res2 = requests.post(url_sheet, headers=headers, json=payload)
-        if res2.status_code in [200, 201]:
-            return True
+        else:
+            st.error(f"Lỗi upload dữ liệu lên OneDrive: HTTP {put_res.status_code}")
+            return False
 
-        # In lỗi chi tiết từ Microsoft nếu không thành công
-        st.error(f"Chi tiết lỗi từ Microsoft API (HTTP {res.status_code}): {res.text}")
-        return False
     except Exception as e:
-        st.error(f"Lỗi gửi dữ liệu: {str(e)}")
+        st.error(f"Lỗi xử lý file Excel: {str(e)}")
         return False
 
 def calculate_distance(lat1, lon1, lat2, lon2):
