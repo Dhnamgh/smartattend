@@ -51,13 +51,16 @@ st.markdown("""
 
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
 
+# Bán kính cho phép điểm danh (Tính bằng mét)
+MAX_ALLOWED_RADIUS = 100.0 
+
 # Danh sách 3 Cơ sở kèm Tọa độ tâm chuẩn & Địa chỉ chi tiết
 CAMPUSES = {
     "CS1": {
         "name": "Cơ sở 1",
         "address": "217 Hồng Bàng, Phường 11, Quận 5, TP.HCM",
-        "lat": 10.755061,  # Tọa độ chuẩn từ Google Maps
-        "lng": 106.662962, # Tọa độ chuẩn từ Google Maps
+        "lat": 10.755061,  
+        "lng": 106.662962, 
         "allowed_ips": ["118.69.1.1", "118.69.1.2"]
     },
     "CS2": {
@@ -158,7 +161,7 @@ with tabs[0]:
         if user_group == "Sinh viên":
             selected_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST)
             
-        input_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001")
+        input_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001").strip()
         
         fetched_name = ""
         fetched_unit = ""
@@ -168,8 +171,10 @@ with tabs[0]:
         if len(input_id) == 8:
             if user_group == "Cán bộ / Viên chức / Giảng viên":
                 cbvc_df = read_excel_from_onedrive("ATTENDANCE/DATA/CBVC.xlsx")
-                if not cbvc_df.empty:
-                    match = cbvc_df[cbvc_df["MSVC"] == input_id]
+                if not cbvc_df.empty and "MSVC" in cbvc_df.columns:
+                    # Chuẩn hóa mã số 8 chữ số (tránh mất số 0 đầu trong Excel)
+                    cbvc_df["MSVC_CLEAN"] = cbvc_df["MSVC"].astype(str).str.strip().str.zfill(8)
+                    match = cbvc_df[cbvc_df["MSVC_CLEAN"] == input_id]
                     if not match.empty:
                         fetched_name = match.iloc[0].get("Họ và tên", "")
                         fetched_unit = match.iloc[0].get("Đơn vị", "")
@@ -177,8 +182,10 @@ with tabs[0]:
             else:
                 sv_class_path = f"ATTENDANCE/DATA/SV/{selected_class}.xlsx"
                 sv_df = read_excel_from_onedrive(sv_class_path)
-                if not sv_df.empty:
-                    match = sv_df[sv_df["MSSV"] == input_id]
+                if not sv_df.empty and "MSSV" in sv_df.columns:
+                    # Chuẩn hóa mã số 8 chữ số
+                    sv_df["MSSV_CLEAN"] = sv_df["MSSV"].astype(str).str.strip().str.zfill(8)
+                    match = sv_df[sv_df["MSSV_CLEAN"] == input_id]
                     if not match.empty:
                         fetched_name = match.iloc[0].get("Họ và tên", "")
                         fetched_unit = match.iloc[0].get("Đơn vị (Trường/Khoa)", "")
@@ -216,7 +223,7 @@ with tabs[0]:
         
         action_type = st.radio("Thao tác ca làm việc:", ["Vào ca (Check-in)", "Ra ca (Check-out)"], horizontal=True)
 
-        # 3. TỰ ĐỘNG NHẬN DIỆN CƠ SỞ THEO BÁN KÍNH 50M
+        # 3. TỰ ĐỘNG NHẬN DIỆN CƠ SỞ THEO BÁN KÍNH MAX_ALLOWED_RADIUS (100M)
         detected_campus_key = None
         detected_campus_info = None
         min_distance = 999999
@@ -226,7 +233,7 @@ with tabs[0]:
                 d = calculate_distance(user_lat, user_lng, c_val["lat"], c_val["lng"])
                 if d < min_distance:
                     min_distance = d
-                if d <= 50:
+                if d <= MAX_ALLOWED_RADIUS:
                     detected_campus_key = c_key
                     detected_campus_info = c_val
                     break
@@ -235,11 +242,11 @@ with tabs[0]:
         if detected_campus_info:
             campus_display_name = f"{detected_campus_info['name']} ({detected_campus_info['address']})"
             st.success(f"Tự động nhận diện: **{detected_campus_info['name']}**")
-            st.info(f"Địa chỉ: {detected_campus_info['address']}\nKhoảng cách: {min_distance:.1f} m (Hợp lệ <= 50m)")
+            st.info(f"Địa chỉ: {detected_campus_info['address']}\nKhoảng cách: {min_distance:.1f} m (Hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
         else:
             campus_display_name = "Không xác định"
             if min_distance < 999999:
-                st.markdown(f'<div class="status-box-error">Bị từ chối: Bạn đang ở ngoài bán kính 50m của cả 3 Cơ sở (Khoảng cách tới cơ sở gần nhất: {min_distance:.1f} m)</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="status-box-error">Bị từ chối: Bạn đang ở ngoài bán kính {int(MAX_ALLOWED_RADIUS)}m của cả 3 Cơ sở (Khoảng cách tới cơ sở gần nhất: {min_distance:.1f} m)</div>', unsafe_allow_html=True)
             else:
                 st.info("Đang chờ dữ liệu GPS để xác định Cơ sở...")
 
@@ -256,7 +263,7 @@ with tabs[0]:
         if len(input_id) != 8 or not fetched_name:
             st.error("Mã số 8 chữ số không tồn tại trong danh sách lớp trên OneDrive!")
         elif not detected_campus_info:
-            st.error("Điểm danh thất bại: Bạn phải có mặt trong bán kính 50m của một trong 3 Cơ sở!")
+            st.error(f"Điểm danh thất bại: Bạn phải có mặt trong bán kính {int(MAX_ALLOWED_RADIUS)}m của một trong 3 Cơ sở!")
         else:
             now = datetime.now()
             status = "Đúng giờ"
