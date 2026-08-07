@@ -422,18 +422,92 @@ with tabs[0]:
                 if success:
                     st.success(f"Ghi nhận thành công cho {sub_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
-# ----------------- TAB 2: MINH CHỨNG (HỖ TRỢ TỰ ĐỘNG TRA CỨU SINH VIÊN) -----------------
+# ----------------- TAB 2: MINH CHỨNG (TỰ ĐỘNG CHẶN NỐI ĐƠN NẾU ĐÃ ĐIỂM DANH TRONG NGÀY) -----------------
 with tabs[1]:
     st.subheader("Nộp minh chứng đi trễ / Báo xin nghỉ phép")
     
-    with st.form("form_minh_chung"):
-        mc_group = st.radio("Đối tượng nộp:", ["Giảng viên/Viên chức", "Sinh viên"], horizontal=True)
+    mc_group = st.radio("Đối tượng nộp:", ["Giảng viên/Viên chức", "Sinh viên"], horizontal=True, key="mc_group_radio")
+    
+    mc_class = ""
+    if mc_group == "Sinh viên":
+        mc_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST, key="mc_class_select")
         
-        mc_class = ""
-        if mc_group == "Sinh viên":
-            mc_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST, key="mc_class_select")
-            
-        mc_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001").strip()
+    mc_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001", key="mc_id_input").strip()
+    
+    mc_fetched_name = ""
+    mc_fetched_unit = ""
+    mc_sub_role = "Giảng viên"
+    
+    if len(mc_id) == 8:
+        if mc_group == "Giảng viên/Viên chức":
+            cbvc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
+            if not cbvc_df.empty:
+                col_msvc = cbvc_df.columns[0]
+                col_name = cbvc_df.columns[1] if len(cbvc_df.columns) > 1 else cbvc_df.columns[0]
+                col_unit = cbvc_df.columns[2] if len(cbvc_df.columns) > 2 else ""
+                
+                cbvc_df["CLEAN_ID"] = cbvc_df[col_msvc].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
+                match = cbvc_df[cbvc_df["CLEAN_ID"] == mc_id]
+                if not match.empty:
+                    mc_fetched_name = match.iloc[0][col_name]
+                    mc_fetched_unit = match.iloc[0][col_unit] if col_unit else ""
+        else:
+            mc_sub_role = "Sinh viên"
+            sv_df = read_excel_from_onedrive(f"OGSM/ATTENDANCE/DATA/SV/{mc_class}.xlsx")
+            if not sv_df.empty:
+                col_mssv = sv_df.columns[0]
+                col_name = sv_df.columns[1] if len(sv_df.columns) > 1 else sv_df.columns[0]
+                col_unit = sv_df.columns[2] if len(sv_df.columns) > 2 else ""
+                
+                sv_df["CLEAN_ID"] = sv_df[col_mssv].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
+                match = sv_df[sv_df["CLEAN_ID"] == mc_id]
+                if not match.empty:
+                    mc_fetched_name = match.iloc[0][col_name]
+                    mc_fetched_unit = f"{match.iloc[0][col_unit]} - Lớp {mc_class}" if col_unit else f"Lớp {mc_class}"
+
+    # Hiển thị thông tin kiểm tra
+    col_mc1, col_mc2 = st.columns(2)
+    with col_mc1:
+        st.text_input("Họ và tên người nộp:", value=str(mc_fetched_name if mc_fetched_name else ("Mã số chưa đúng" if len(mc_id)==8 else "")), disabled=True, key="mc_name_disp")
+    with col_mc2:
+        st.text_input("Đơn vị / Lớp:", value=str(mc_fetched_unit if mc_fetched_unit else ""), disabled=True, key="mc_unit_disp")
+
+    # TRA CỨU XEM NGƯỜI NÀY ĐÃ ĐIỂM DANH TRONG NGÀY HÔM NAY CHƯA
+    has_attended_today = False
+    attendance_today_time = ""
+    is_morning_attended = False
+    is_afternoon_attended = False
+
+    if len(mc_id) == 8 and mc_fetched_name:
+        # Kiểm tra file nhật ký điểm danh
+        check_paths = [
+            "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
+            "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
+            "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
+        ]
+        today_str = now_vn.strftime("%Y-%m-%d")
+        
+        for path in check_paths:
+            hist_df = read_excel_from_onedrive(path)
+            if not hist_df.empty and "Mã Số" in hist_df.columns and "Thời Gian" in hist_df.columns:
+                hist_df["CLEAN_ID"] = hist_df["Mã Số"].astype(str).str.strip().str.zfill(8)
+                hist_df["DATE_STR"] = hist_df["Thời Gian"].astype(str).str[:10]
+                
+                records_today = hist_df[(hist_df["CLEAN_ID"] == mc_id) & (hist_df["DATE_STR"] == today_str)]
+                if not records_today.empty:
+                    has_attended_today = True
+                    last_rec = records_today.iloc[-1]
+                    attendance_today_time = str(last_rec.get("Thời Gian", ""))
+                    
+                    # Phân loại điểm danh Sáng / Chiều
+                    for _, r in records_today.iterrows():
+                        t_str = str(r.get("Thời Gian", ""))
+                        if len(t_str) >= 16:
+                            hour = int(t_str[11:13])
+                            if hour < 12: is_morning_attended = True
+                            else: is_afternoon_attended = True
+
+    with st.form("form_minh_chung_detail"):
         mc_type = st.selectbox("Loại yêu cầu:", ["Nghỉ phép Buổi Sáng", "Nghỉ phép Buổi Chiều", "Nghỉ phép Cả Ngày", "Minh chứng Đi trễ > 30 phút"])
         mc_reason = st.text_area("Lý do chi tiết:")
         mc_file = st.file_uploader("Tải lên file đi kèm (Ảnh / PDF):", type=["png", "jpg", "jpeg", "pdf"])
@@ -441,32 +515,19 @@ with tabs[1]:
         btn_submit = st.form_submit_button("GỬI YÊU CẦU MINH CHỨNG")
         
         if btn_submit:
-            if len(mc_id) != 8 or not mc_reason:
-                st.error("Vui lòng nhập đầy đủ Mã số (8 chữ số) và Lý do chi tiết!")
+            # KIỂM TRA CHẶT CHẼ TRƯỚC KHIN CHO NỘP ĐƠN
+            if len(mc_id) != 8 or not mc_fetched_name:
+                st.error("Mã số 8 chữ số không tồn tại trong danh sách dữ liệu trên OneDrive! Vui lòng kiểm tra lại.")
+            elif not mc_reason:
+                st.error("Vui lòng nhập lý do chi tiết!")
+            elif mc_type == "Nghỉ phép Cả Ngày" and has_attended_today:
+                st.error(f"Từ chối gửi đơn: Bạn đã có lượt điểm danh có mặt trong ngày hôm nay lúc `{attendance_today_time}`! Không thể nộp đơn xin nghỉ cả ngày.")
+            elif mc_type == "Nghỉ phép Buổi Sáng" and is_morning_attended:
+                st.error("Từ chối gửi đơn: Bạn đã có lượt điểm danh trong Buổi Sáng hôm nay! Không thể nộp đơn xin nghỉ buổi sáng.")
+            elif mc_type == "Nghỉ phép Buổi Chiều" and is_afternoon_attended:
+                st.error("Từ chối gửi đơn: Bạn đã có lượt điểm danh trong Buổi Chiều hôm nay! Không thể nộp đơn xin nghỉ buổi chiều.")
             else:
-                # TRA CỨU HỌ TÊN VÀ ĐƠN VỊ TỰ ĐỘNG THEO ĐỐI TƯỢNG
-                applicant_name = "N/A"
-                applicant_unit = "N/A"
-                
-                if mc_group == "Giảng viên/Viên chức":
-                    cbvc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
-                    if not cbvc_df.empty:
-                        cbvc_df["CLEAN_ID"] = cbvc_df.iloc[:, 0].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
-                        match = cbvc_df[cbvc_df["CLEAN_ID"] == mc_id]
-                        if not match.empty:
-                            applicant_name = match.iloc[0, 1]
-                            applicant_unit = match.iloc[0, 2] if len(match.columns) > 2 else ""
-                else:
-                    # Tra cứu Sinh viên theo Lớp chọn
-                    sv_df = read_excel_from_onedrive(f"OGSM/ATTENDANCE/DATA/SV/{mc_class}.xlsx")
-                    if not sv_df.empty:
-                        sv_df["CLEAN_ID"] = sv_df.iloc[:, 0].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
-                        match = sv_df[sv_df["CLEAN_ID"] == mc_id]
-                        if not match.empty:
-                            applicant_name = match.iloc[0, 1]
-                            applicant_unit = f"{match.iloc[0, 2]} - Lớp {mc_class}" if len(match.columns) > 2 else f"Lớp {mc_class}"
-
-                # TẢI FILE LÊN ONEDRIVE
+                # TIẾN HÀNH UPLOAD FILE VÀ LƯU VÀO ONEDRIVE
                 file_saved_name = "Không có file"
                 if mc_file is not None:
                     file_ext = mc_file.name.split(".")[-1]
@@ -479,17 +540,16 @@ with tabs[1]:
                         mc_file.getvalue()
                     )
 
-                # GHI VÀO FILE MinhChung_NghiPhep.xlsx
                 mc_cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Loại Yêu Cầu", "Lý Do", "File Minh Chứng", "Thời Gian Gửi", "Trạng Thái Duyệt"]
                 mc_row = [
-                    mc_id, str(applicant_name), mc_group, str(applicant_unit),
+                    mc_id, str(mc_fetched_name), mc_group, str(mc_fetched_unit),
                     mc_type, mc_reason, file_saved_name, now_vn.strftime("%Y-%m-%d %H:%M:%S"), "Chờ duyệt"
                 ]
                 
                 saved_mc = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx", mc_row, custom_cols=mc_cols)
                 
                 if saved_mc:
-                    st.success(f"Yêu cầu xin nghỉ / minh chứng của Sinh viên {applicant_name} ({mc_id}) đã được ghi nhận thành công!")
+                    st.success(f"Yêu cầu xin nghỉ / minh chứng của {mc_group} {mc_fetched_name} ({mc_id}) đã được ghi nhận thành công!")
                 else:
                     st.error("Lỗi khi gửi dữ liệu lên OneDrive!")
 
