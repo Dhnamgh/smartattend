@@ -101,7 +101,7 @@ def get_azure_token():
         return None
 
 @st.cache_data(ttl=5)
-def read_excel_from_onedrive(file_path):
+def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
     if not token:
         return pd.DataFrame()
@@ -111,8 +111,13 @@ def read_excel_from_onedrive(file_path):
         headers = {"Authorization": f"Bearer {token}"}
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            df = pd.read_excel(io.BytesIO(response.content), dtype=str, engine="openpyxl")
-            # Làm sạch tên các cột (bỏ khoảng trắng và ký tự ẩn)
+            excel_bytes = io.BytesIO(response.content)
+            # Nếu truyền sheet_name thì đọc đúng sheet đó, không thì đọc sheet đầu tiên
+            if sheet_name:
+                df = pd.read_excel(excel_bytes, sheet_name=sheet_name, dtype=str, engine="openpyxl")
+            else:
+                df = pd.read_excel(excel_bytes, dtype=str, engine="openpyxl")
+            
             df.columns = [str(c).strip().replace('\xa0', '') for c in df.columns]
             return df
         else:
@@ -173,15 +178,14 @@ with tabs[0]:
         
         if len(input_id) == 8:
             if user_group == "Cán bộ / Viên chức / Giảng viên":
-                target_df = read_excel_from_onedrive("ATTENDANCE/DATA/CBVC.xlsx")
+                # Đọc chính xác sheet Nhansu
+                target_df = read_excel_from_onedrive("ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                 if not target_df.empty:
-                    # Cột 0: MSVC, Cột 1: Họ và tên, Cột 2: Đơn vị, Cột 3: Bộ môn
                     col_msvc = target_df.columns[0]
                     col_name = target_df.columns[1] if len(target_df.columns) > 1 else target_df.columns[0]
                     col_unit = target_df.columns[2] if len(target_df.columns) > 2 else ""
                     col_sub = target_df.columns[3] if len(target_df.columns) > 3 else ""
                     
-                    # Chuẩn hóa mã số trong bảng Excel
                     target_df["CLEAN_ID"] = target_df[col_msvc].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
                     match = target_df[target_df["CLEAN_ID"] == input_id]
                     
