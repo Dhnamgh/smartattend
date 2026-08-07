@@ -77,29 +77,13 @@ CAMPUSES = {
     }
 }
 
-# ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API (DELEGATED/APPLICATION HYBRID) =================
+# ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API =================
 def get_azure_token():
     try:
         tenant_id = st.secrets["azure"]["TENANT_ID"]
         client_id = st.secrets["azure"]["CLIENT_ID"]
         client_secret = st.secrets["azure"]["CLIENT_SECRET"]
         
-        # Kiểm tra nếu cấu hình Refresh Token (Luồng Delegated không cần cấp quyền Admin)
-        if "REFRESH_TOKEN" in st.secrets["azure"] and st.secrets["azure"]["REFRESH_TOKEN"]:
-            refresh_token = st.secrets["azure"]["REFRESH_TOKEN"]
-            token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-            payload = {
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'grant_type': 'refresh_token',
-                'refresh_token': refresh_token,
-                'scope': 'files.readwrite.all offline_access'
-            }
-            res = requests.post(token_url, data=payload)
-            if res.status_code == 200:
-                return res.json().get("access_token")
-        
-        # Nếu không có Refresh Token, chạy theo luồng Application mặc định
         authority = f"https://login.microsoftonline.com/{tenant_id}"
         app = msal.ConfidentialClientApplication(
             client_id, authority=authority, client_credential=client_secret
@@ -110,7 +94,7 @@ def get_azure_token():
         if "access_token" in result:
             return result["access_token"]
         else:
-            st.error("Không thể lấy Token xác thực!")
+            st.error("Không thể lấy token xác thực Azure!")
             return None
     except Exception as e:
         st.error(f"Lỗi cấu hình Azure Secrets: {str(e)}")
@@ -121,13 +105,8 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
     if not token:
         return pd.DataFrame()
     try:
-        # Đường dẫn API cho cả tài khoản cá nhân hoặc dùng User Email
-        if "USER_EMAIL" in st.secrets["azure"] and st.secrets["azure"]["USER_EMAIL"]:
-            user_email = st.secrets["azure"]["USER_EMAIL"]
-            url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/content"
-        else:
-            url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:/content"
-            
+        user_email = st.secrets["azure"]["USER_EMAIL"]
+        url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/content"
         headers = {"Authorization": f"Bearer {token}"}
         response = requests.get(url, headers=headers)
         
@@ -144,7 +123,7 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
             df.columns = [str(c).strip().replace('\xa0', '') for c in df.columns]
             return df
         else:
-            st.error(f"Không thể truy cập file trên OneDrive (Mã lỗi HTTP: {response.status_code}).")
+            st.error(f"Không thể truy cập file trên OneDrive (Mã lỗi HTTP: {response.status_code}). Đường dẫn: {file_path}")
             return pd.DataFrame()
     except Exception as e:
         st.error(f"Lỗi xử lý file Excel: {str(e)}")
@@ -155,12 +134,8 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
     if not token:
         return False
     try:
-        if "USER_EMAIL" in st.secrets["azure"] and st.secrets["azure"]["USER_EMAIL"]:
-            user_email = st.secrets["azure"]["USER_EMAIL"]
-            url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
-        else:
-            url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
-            
+        user_email = st.secrets["azure"]["USER_EMAIL"]
+        url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:/workbook/tables/{table_name}/rows/add"
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
@@ -207,7 +182,8 @@ with tabs[0]:
         
         if len(input_id) == 8:
             if user_group == "Cán bộ / Viên chức / Giảng viên":
-                target_df = read_excel_from_onedrive("ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
+                # Đọc file CBVC.xlsx tại OGSM/ATTENDANCE/DATA/
+                target_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                 if not target_df.empty:
                     col_msvc = target_df.columns[0]
                     col_name = target_df.columns[1] if len(target_df.columns) > 1 else target_df.columns[0]
@@ -222,7 +198,8 @@ with tabs[0]:
                         fetched_unit = match.iloc[0][col_unit] if col_unit else ""
                         fetched_sub = match.iloc[0][col_sub] if col_sub else ""
             else:
-                sv_class_path = f"ATTENDANCE/DATA/SV/{selected_class}.xlsx"
+                # Đọc file sinh viên tại OGSM/ATTENDANCE/DATA/SV/
+                sv_class_path = f"OGSM/ATTENDANCE/DATA/SV/{selected_class}.xlsx"
                 target_df = read_excel_from_onedrive(sv_class_path)
                 if not target_df.empty:
                     col_mssv = target_df.columns[0]
@@ -331,7 +308,8 @@ with tabs[0]:
                 round(min_distance, 1), user_ip if user_ip else "N/A", status, note
             ]
             
-            success = append_row_to_onedrive_excel("ATTENDANCE/DATA/LichSu_DiemDanh.xlsx", "BangDiemDanh", row_data)
+            # Ghi dữ liệu vào OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx
+            success = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx", "BangDiemDanh", row_data)
             
             if success:
                 st.success(f"Ghi nhận thành công cho {fetched_name} tại {detected_campus_info['name']} lúc {now.strftime('%H:%M:%S')}. Trạng thái: {status}")
@@ -356,9 +334,9 @@ with tabs[2]:
     st.subheader("Báo cáo và Thống kê Điểm danh")
     
     if st.button("CẬP NHẬT DỮ LIỆU TỪ ONEDRIVE"):
-        st.session_state.history_df = read_excel_from_onedrive("ATTENDANCE/DATA/LichSu_DiemDanh.xlsx")
+        st.session_state.history_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx")
 
-    history_df = st.session_state.get("history_df", read_excel_from_onedrive("ATTENDANCE/DATA/LichSu_DiemDanh.xlsx"))
+    history_df = st.session_state.get("history_df", read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/LichSu_DiemDanh.xlsx"))
     
     if history_df.empty:
         st.info("Chưa có dữ liệu điểm danh trên OneDrive hoặc chưa kết nối thành công.")
