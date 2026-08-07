@@ -14,14 +14,14 @@ st.set_page_config(page_title="HỆ THỐNG ĐIỂM DANH UMP", layout="wide")
 
 st.markdown("""
 <style>
-    div[data-baseweb="tab-list"] { gap: 8px; }
+    div[data-baseweb="tab-list"] { gap: 6px; }
     button[data-baseweb="tab"] {
         background-color: #1877F2 !important;
         color: #FFFFFF !important;
         border-radius: 4px !important;
-        padding: 10px 24px !important;
+        padding: 8px 16px !important;
         font-weight: bold !important;
-        font-size: 15px !important;
+        font-size: 14px !important;
         border: none !important;
     }
     button[data-baseweb="tab"][aria-selected="true"] {
@@ -38,15 +38,15 @@ st.markdown("""
     .stCaption {
         color: #111111 !important;
         font-weight: 600 !important;
-        font-size: 14px !important;
+        font-size: 13px !important;
     }
     div.stButton > button {
         background-color: #1877F2 !important;
         color: #FFFFFF !important;
         border: none !important;
         font-weight: bold !important;
-        font-size: 18px !important;
-        padding: 12px 0px !important;
+        font-size: 17px !important;
+        padding: 10px 0px !important;
         border-radius: 6px !important;
     }
     div.stButton > button:hover {
@@ -56,16 +56,16 @@ st.markdown("""
     .status-box-success {
         background-color: #E7F3FF;
         border-left: 5px solid #1877F2;
-        padding: 12px;
-        margin-bottom: 10px;
+        padding: 10px;
+        margin-bottom: 8px;
         color: #050505;
         font-weight: 500;
     }
     .status-box-error {
         background-color: #FFEBE9;
         border-left: 5px solid #E41E3F;
-        padding: 12px;
-        margin-bottom: 10px;
+        padding: 10px;
+        margin-bottom: 8px;
         color: #050505;
         font-weight: 500;
     }
@@ -82,7 +82,8 @@ CAMPUSES = {
     "CS3": {"name": "Cơ sở 3", "address": "41 Đinh Tiên Hoàng, Phường Bến Nghé, Quận 1, TP.HCM", "lat": 10.785324, "lng": 106.702328}
 }
 
-LESSON_TIMES = {
+# LỊCH LÝ THUYẾT (Sáng từ 07:00, Chiều từ 13:00)
+LESSON_TIMES_THEORY = {
     1:  {"start": (7, 0),   "end": (7, 50)},
     2:  {"start": (7, 50),  "end": (8, 40)},
     3:  {"start": (8, 50),  "end": (9, 40)},
@@ -93,6 +94,20 @@ LESSON_TIMES = {
     8:  {"start": (14, 50), "end": (15, 40)},
     9:  {"start": (15, 40), "end": (16, 30)},
     10: {"start": (16, 30), "end": (17, 20)}
+}
+
+# LỊCH THỰC HÀNH (Trễ hơn 30 phút: Sáng từ 07:30, Chiều từ 13:30)
+LESSON_TIMES_PRACTICE = {
+    1:  {"start": (7, 30),  "end": (8, 20)},
+    2:  {"start": (8, 20),  "end": (9, 10)},
+    3:  {"start": (9, 10),  "end": (10, 0)},
+    4:  {"start": (10, 0),  "end": (10, 50)},
+    5:  {"start": (10, 50), "end": (11, 40)},
+    6:  {"start": (13, 30), "end": (14, 20)},
+    7:  {"start": (14, 20), "end": (15, 10)},
+    8:  {"start": (15, 10), "end": (16, 0)},
+    9:  {"start": (16, 0),  "end": (16, 50)},
+    10: {"start": (16, 50), "end": (17, 40)}
 }
 
 def get_vietnam_now():
@@ -201,16 +216,17 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 # ================= 3. GIAO DIỆN HỆ THỐNG =================
 st.title("HỆ THỐNG ĐIỂM DANH UMP")
-tabs = st.tabs(["THỰC HIỆN ĐIỂM DANH", "NỘP MINH CHỨNG / BÁO NGHỈ PHÉP", "DASHBOARD BÁO CÁO"])
+
+# TÊN TAB ĐƯỢC TỐI ƯU NGẮN GỌN
+tabs = st.tabs(["Điểm danh", "Báo nghỉ phép", "Dashboard"])
 
 # ----------------- TAB 1: ĐIỂM DANH -----------------
 with tabs[0]:
-    st.subheader("Màn hình Điểm danh")
     col1, col2 = st.columns(2)
     now_vn = get_vietnam_now()
     
     with col1:
-        user_role = st.radio("Chọn đối tượng điểm danh:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True)
+        user_role = st.radio("Chọn đối tượng:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True)
         
         selected_class = ""
         if user_role == "Sinh viên":
@@ -260,13 +276,19 @@ with tabs[0]:
             st.text_input("Tên học phần:", value=str(fetched_course), disabled=True)
 
         start_lesson, end_lesson = 1, 1
+        lesson_schedule = LESSON_TIMES_THEORY
+        study_type = "Lý thuyết"
+
         if user_role in ["Giảng viên", "Sinh viên"]:
-            st.markdown("**Đăng ký ca học/giảng dạy (Tiết 1 đến 10):**")
+            study_type = st.radio("Hình thức:", ["Lý thuyết", "Thực hành"], horizontal=True)
+            lesson_schedule = LESSON_TIMES_PRACTICE if study_type == "Thực hành" else LESSON_TIMES_THEORY
+            
+            # Chọn "Từ tiết" (Tự động lọc theo thời gian thực tế)
             valid_start_lessons = []
             for t in range(1, 11):
-                t_end_h, t_end_m = LESSON_TIMES[t]["end"]
+                t_end_h, t_end_m = lesson_schedule[t]["end"]
                 t_end_dt = now_vn.replace(hour=t_end_h, minute=t_end_m, second=0, microsecond=0)
-                if now_vn <= t_end_dt or t >= 6 and now_vn.hour < 12: 
+                if now_vn <= t_end_dt or (t >= 6 and now_vn.hour < 12): 
                     valid_start_lessons.append(t)
             
             if not valid_start_lessons: valid_start_lessons = list(range(1, 11))
@@ -274,29 +296,35 @@ with tabs[0]:
             c_t1, c_t2 = st.columns(2)
             with c_t1:
                 start_lesson = st.selectbox("Từ tiết:", valid_start_lessons, index=0)
+            
+            # GIỚI HẠN KHÔNG CHO CHỌN VẮT SANG BUỔI KHÁC (Sáng 1-5, Chiều 6-10)
             with c_t2:
-                valid_end_lessons = [t for t in range(start_lesson, 11)]
+                if start_lesson <= 5:
+                    valid_end_lessons = [t for t in range(start_lesson, 6)]
+                else:
+                    valid_end_lessons = [t for t in range(start_lesson, 11)]
+                    
                 end_lesson = st.selectbox("Đến tiết:", valid_end_lessons, index=min(1, len(valid_end_lessons)-1))
                 
-            s_h, s_m = LESSON_TIMES[start_lesson]["start"]
-            e_h, e_m = LESSON_TIMES[end_lesson]["end"]
-            st.caption(f"Thời gian ca chọn: **{s_h:02d}:{s_m:02d} - {e_h:02d}:{e_m:02d}**")
+            s_h, s_m = lesson_schedule[start_lesson]["start"]
+            e_h, e_m = lesson_schedule[end_lesson]["end"]
+            st.caption(f"Thời gian ca ({study_type}): **{s_h:02d}:{s_m:02d} - {e_h:02d}:{e_m:02d}**")
 
     with col2:
-        st.markdown("**Xác thực Tự động (GPS & Mạng Wi-Fi)**")
+        st.markdown("**Xác thực Tự động (GPS & Wi-Fi)**")
         location = get_geolocation()
         user_lat, user_lng = None, None
         if location and 'coords' in location:
             user_lat, user_lng = location['coords']['latitude'], location['coords']['longitude']
-            st.caption(f"Tọa độ GPS thiết bị: `{user_lat:.5f}, {user_lng:.5f}`")
+            st.caption(f"GPS: `{user_lat:.5f}, {user_lng:.5f}`")
         else:
-            st.warning("Đang kết nối GPS... Vui lòng CHỌN 'CHO PHÉP' (Allow) khi trình duyệt hỏi quyền vị trí!")
+            st.warning("Đang kết nối GPS... CHỌN 'CHO PHÉP' (Allow) vị trí!")
 
         user_ip = streamlit_js_eval(
             js_expressions="fetch('https://api.ipify.org?format=json').then(r => r.json()).then(data => data.ip)", 
             key='get_user_ip'
         )
-        if user_ip: st.caption(f"Địa chỉ IP kết nối: `{user_ip}`")
+        if user_ip: st.caption(f"IP: `{user_ip}`")
         
         action_type = st.radio("Thao tác ca làm việc:", ["Vào ca (Check-in)", "Ra ca (Check-out)"], horizontal=True)
 
@@ -325,23 +353,27 @@ with tabs[0]:
 
         if detected_campus_info:
             campus_display_name = f"{detected_campus_info['name']} ({detected_campus_info['address']})"
-            st.success(f"Đã xác nhận: **{detected_campus_info['name']}**")
-            st.info(f"Địa chỉ: {detected_campus_info['address']}\nKhoảng cách GPS: {curr_dist:.1f} m (Hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
+            st.success(f"Đã chọn: **{detected_campus_info['name']}**")
+            st.info(f"GPS: {curr_dist:.1f} m (Bán kính hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
         else:
             campus_display_name = "Không xác định"
-            st.markdown('<div class="status-box-error">Vui lòng chọn Cơ sở điểm danh hợp lệ ở menu phía trên!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-box-error">Chọn Cơ sở điểm danh hợp lệ ở menu phía trên!</div>', unsafe_allow_html=True)
 
         ip_valid = False
         if detected_campus_info and user_ip:
             ip_valid = any(user_ip.startswith(prefix) for prefix in ALLOWED_IP_PREFIXES)
-            if ip_valid: st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Đúng Wi-Fi nội bộ nhà trường)</div>', unsafe_allow_html=True)
-            else: st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi nội bộ nhà trường</div>', unsafe_allow_html=True)
+            if ip_valid: st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Wi-Fi trường)</div>', unsafe_allow_html=True)
+            else: st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi trường</div>', unsafe_allow_html=True)
 
     if st.button("XÁC NHẬN ĐIỂM DANH", use_container_width=True):
-        if len(input_id) != 8 or not fetched_name:
+        # 1. BẢO MẬT VỊ TRÍ: CHẶN TUỆT ĐỐI NẾU KHOẢNG CÁCH > 70M HOẶC KHÔNG CHỌN ĐƯỢC CƠ SỞ
+        if curr_dist > MAX_ALLOWED_RADIUS or not detected_campus_info:
+            st.error(f"Điểm danh thất bại: Khoảng cách hiện tại ({curr_dist:.1f}m) vượt quá {int(MAX_ALLOWED_RADIUS)}m quy định hoặc không ở trong cơ sở!")
+        # 2. BẢO MẬT NGOÀI GIỜ: CHẶN ĐIỂM DANH BUỔI TỐI / NGOÀI GIỜ HỌC NỔI TẬP
+        elif now_vn.hour >= 18 or (now_vn.hour < 6):
+            st.error(f"Điểm danh thất bại: Hiện tại ({now_vn.strftime('%H:%M')}) nằm ngoài giờ học tập / làm việc quy định!")
+        elif len(input_id) != 8 or not fetched_name:
             st.error("Mã số 8 chữ số không tồn tại trong danh sách dữ liệu trên OneDrive!")
-        elif not detected_campus_info:
-            st.error("Điểm danh thất bại: Vui lòng chọn Cơ sở điểm danh hợp lệ!")
         else:
             file_map = {
                 "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
@@ -363,14 +395,12 @@ with tabs[0]:
 
             can_proceed = True
             
-            # --- KIỂM TRA CHẶT CHẼ THỜI GIAN THEO ĐỐI TƯỢNG ---
             if user_role in ["Giảng viên", "Sinh viên"]:
-                s_h, s_m = LESSON_TIMES[start_lesson]["start"]
-                e_h, e_m = LESSON_TIMES[end_lesson]["end"]
+                s_h, s_m = lesson_schedule[start_lesson]["start"]
+                e_h, e_m = lesson_schedule[end_lesson]["end"]
                 sched_start = now_vn.replace(hour=s_h, minute=s_m, second=0, microsecond=0)
                 sched_end = now_vn.replace(hour=e_h, minute=e_m, second=0, microsecond=0)
             else:
-                # Viên chức: Sáng tính từ 07:00, Chiều tính từ 13:00
                 sched_start = now_vn.replace(hour=7, minute=0, second=0) if now_vn.hour < 12 else now_vn.replace(hour=13, minute=0, second=0)
                 sched_end = sched_start + timedelta(hours=4)
 
@@ -379,7 +409,7 @@ with tabs[0]:
                     late_limit = sched_start + timedelta(minutes=30)
                     if now_vn > late_limit:
                         session_name = "buổi Sáng (07:00)" if now_vn.hour < 12 else "buổi Chiều (13:00)"
-                        st.error(f"Từ chối điểm danh: Đã quá 30 phút so với giờ vào ca {session_name}! Giờ hiện tại: {now_vn.strftime('%H:%M')}. Vui lòng sang Tab 'NỘP MINH CHỨNG / BÁO NGHỈ PHÉP' để gửi yêu cầu.")
+                        st.error(f"Từ chối điểm danh: Đã quá 30 phút so với giờ vào ca {session_name}! Giờ hiện tại: {now_vn.strftime('%H:%M')}. Vui lòng sang Tab 'Báo nghỉ phép' để nộp đơn.")
                         can_proceed = False
 
             if can_proceed:
@@ -389,7 +419,7 @@ with tabs[0]:
                         can_proceed = False
                     elif now_vn < sched_end - timedelta(minutes=10):
                         time_left = int((sched_end - now_vn).total_seconds() / 60)
-                        st.error(f"Chưa hết giờ ca làm việc/tiết học! Ca học/dạy kết thúc lúc {sched_end.strftime('%H:%M')}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
+                        st.error(f"Chưa hết giờ ca làm việc/tiết học! Ca kết thúc lúc {sched_end.strftime('%H:%M')}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
                         can_proceed = False
 
                 elif action_type == "Vào ca (Check-in)":
@@ -406,11 +436,11 @@ with tabs[0]:
                     if action_type == "Vào ca (Check-in)":
                         if now_vn > sched_start + timedelta(minutes=15):
                             status = "Vào trễ"
-                            note = f"Tiết {start_lesson} bắt đầu lúc {sched_start.strftime('%H:%M')}. Điểm danh lúc {now_vn.strftime('%H:%M')}."
+                            note = f"[{study_type}] Tiết {start_lesson} bắt đầu {sched_start.strftime('%H:%M')}. Điểm danh lúc {now_vn.strftime('%H:%M')}."
                         else:
-                            note = f"Lịch Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end.strftime('%H:%M')})"
+                            note = f"[{study_type}] Lịch Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end.strftime('%H:%M')})"
                     else:
-                        note = f"Hoàn thành ca Tiết {start_lesson}-{end_lesson}"
+                        note = f"[{study_type}] Hoàn thành ca Tiết {start_lesson}-{end_lesson}"
                 else:
                     if action_type == "Vào ca (Check-in)":
                         if now_vn > sched_start + timedelta(minutes=15):
@@ -431,10 +461,8 @@ with tabs[0]:
                 if success:
                     st.success(f"Ghi nhận thành công cho {user_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
-# ----------------- TAB 2: MINH CHỨNG -----------------
+# ----------------- TAB 2: BÁO NGHỈ PHÉP -----------------
 with tabs[1]:
-    st.subheader("Nộp minh chứng đi trễ / Báo xin nghỉ phép")
-    
     mc_user_role = st.radio("Chọn đối tượng nộp đơn:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True, key="mc_role_radio")
     
     mc_class = ""
@@ -554,10 +582,8 @@ with tabs[1]:
                 else:
                     st.error("Lỗi khi gửi dữ liệu lên OneDrive!")
 
-# ----------------- TAB 3: DASHBOARD BÁO CÁO -----------------
+# ----------------- TAB 3: DASHBOARD -----------------
 with tabs[2]:
-    st.subheader("Báo cáo và Thống kê Trực quan")
-    
     view_mode = st.radio("Chọn loại báo cáo:", ["Nhật ký điểm danh", "Danh sách đơn minh chứng / nghỉ phép"], horizontal=True, key="db_view_mode")
     
     if view_mode == "Nhật ký điểm danh":
@@ -599,7 +625,7 @@ with tabs[2]:
                     hole=0.4,
                     color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900"]
                 )
-                fig_pie.update_layout(margin=dict(t=20, b=20, l=20, r=20))
+                fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_pie, use_container_width=True)
 
             with col_chart2:
@@ -615,7 +641,7 @@ with tabs[2]:
                     text_auto=True,
                     color_discrete_sequence=px.colors.qualitative.Set2
                 )
-                fig_bar.update_layout(showlegend=False, margin=dict(t=20, b=20, l=20, r=20))
+                fig_bar.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
                 st.plotly_chart(fig_bar, use_container_width=True)
 
             st.markdown("**Bảng Nhật ký Chi tiết:**")
