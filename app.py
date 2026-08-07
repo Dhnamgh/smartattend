@@ -7,7 +7,7 @@ import requests
 import msal
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
 
-# ================= 1. CẤU HÌNH GIAO DIỆN & TÔNG MÀU XANH FACEBOOK =================
+# ================= 1. CẤU HÌNH GIAO DIỆN & CHỈNH MÀU RÕ NÉT =================
 st.set_page_config(page_title="Điểm Danh Số - Hệ Thống Trường", layout="wide")
 
 st.markdown("""
@@ -29,6 +29,38 @@ st.markdown("""
         background-color: #0D52B5 !important;
         box-shadow: 0px 2px 5px rgba(0,0,0,0.3);
     }
+    
+    /* Chỉnh chữ trong các ô thông tin thành MÀU ĐEN ĐẬM, RÕ NÉT */
+    input[disabled] {
+        -webkit-text-fill-color: #111111 !important;
+        color: #111111 !important;
+        font-weight: 600 !important;
+        background-color: #F8F9FA !important;
+        opacity: 1 !important;
+    }
+    
+    /* Chỉnh màu chữ Caption GPS và IP cho đậm rõ */
+    .stCaption {
+        color: #222222 !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }
+    
+    /* Chỉnh Nút bấm Điểm danh sang MÀU XANH ĐẬM ĐẸP MẮT */
+    div.stButton > button {
+        background-color: #1877F2 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        font-weight: bold !important;
+        font-size: 18px !important;
+        padding: 12px 0px !important;
+        border-radius: 6px !important;
+    }
+    div.stButton > button:hover {
+        background-color: #0D52B5 !important;
+        color: #FFFFFF !important;
+    }
+
     /* Frame thông báo */
     .status-box-success {
         background-color: #E7F3FF;
@@ -53,7 +85,6 @@ CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26
 
 MAX_ALLOWED_RADIUS = 100.0 
 
-# Tọa độ GPS đã được cập nhật chính xác theo Google Maps
 CAMPUSES = {
     "CS1": {
         "name": "Cơ sở 1",
@@ -102,27 +133,23 @@ def get_azure_token():
         st.error(f"Lỗi cấu hình Azure Secrets: {str(e)}")
         return None
 
-def build_graph_url(file_path, is_table_add=False, table_name=""):
-    # Tự động chọn URL truy cập theo drive_id hoặc email
+def build_graph_url(file_path):
     if "onedrive" in st.secrets and "drive_id" in st.secrets["onedrive"]:
         drive_id = st.secrets["onedrive"]["drive_id"]
-        base_url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path}:"
+        return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/{file_path}:"
     elif "USER_EMAIL" in st.secrets["azure"] or "user_email" in st.secrets["azure"]:
         user_email = st.secrets["azure"].get("USER_EMAIL") or st.secrets["azure"].get("user_email")
-        base_url = f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:"
+        return f"https://graph.microsoft.com/v1.0/users/{user_email}/drive/root:/{file_path}:"
     else:
-        base_url = f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:"
-
-    if is_table_add:
-        return f"{base_url}/workbook/tables/{table_name}/rows/add"
-    return f"{base_url}/content"
+        return f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:"
 
 def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
     if not token:
         return pd.DataFrame()
     try:
-        url = build_graph_url(file_path)
+        base_url = build_graph_url(file_path)
+        url = f"{base_url}/content"
         headers = {"Authorization": f"Bearer {token}"}
         response = requests.get(url, headers=headers)
         
@@ -150,15 +177,31 @@ def append_row_to_onedrive_excel(file_path, table_name, row_values):
     if not token:
         return False
     try:
-        url = build_graph_url(file_path, is_table_add=True, table_name=table_name)
+        base_url = build_graph_url(file_path)
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
         }
+        
+        # Thử nghiệm 1: Ghi vào Table Excel
+        url_table = f"{base_url}/workbook/tables/{table_name}/rows/add"
         payload = {"values": [row_values]}
-        response = requests.post(url, headers=headers, json=payload)
-        return response.status_code in [200, 201]
-    except Exception:
+        res = requests.post(url_table, headers=headers, json=payload)
+        
+        if res.status_code in [200, 201]:
+            return True
+            
+        # Thử nghiệm 2: Nếu file chưa tạo Table, ghi vào Worksheet1
+        url_sheet = f"{base_url}/workbook/worksheets('Sheet1')/tables/{table_name}/rows/add"
+        res2 = requests.post(url_sheet, headers=headers, json=payload)
+        if res2.status_code in [200, 201]:
+            return True
+
+        # In lỗi chi tiết từ Microsoft nếu không thành công
+        st.error(f"Chi tiết lỗi từ Microsoft API (HTTP {res.status_code}): {res.text}")
+        return False
+    except Exception as e:
+        st.error(f"Lỗi gửi dữ liệu: {str(e)}")
         return False
 
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -276,7 +319,7 @@ with tabs[0]:
         if detected_campus_info:
             campus_display_name = f"{detected_campus_info['name']} ({detected_campus_info['address']})"
             st.success(f"Tự động nhận diện: **{detected_campus_info['name']}**")
-            st.info(f"Địa chỉ: {detected_campus_info['address']}\nKhoảng cách: {min_distance:.1f} m (Hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
+            st.info(f"Địa chỉ: {detected_campus_info['address']} Khoảng cách: {min_distance:.1f} m (Hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
         else:
             campus_display_name = "Không xác định"
             if min_distance < 999999:
@@ -292,7 +335,7 @@ with tabs[0]:
             else:
                 st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi nội bộ cơ sở này</div>', unsafe_allow_html=True)
 
-    if st.button("XÁC NHẬN ĐIỂM DANH", type="primary", use_container_width=True):
+    if st.button("XÁC NHẬN ĐIỂM DANH", use_container_width=True):
         if len(input_id) != 8 or not fetched_name:
             st.error("Mã số 8 chữ số không tồn tại trong danh sách dữ liệu trên OneDrive!")
         elif not detected_campus_info:
@@ -325,8 +368,6 @@ with tabs[0]:
             
             if success:
                 st.success(f"Ghi nhận thành công cho {fetched_name} tại {detected_campus_info['name']} lúc {now.strftime('%H:%M:%S')}. Trạng thái: {status}")
-            else:
-                st.error("Lỗi khi ghi dữ liệu vào file Excel trên OneDrive!")
 
 # ----------------- TAB 2: MINH CHỨNG -----------------
 with tabs[1]:
