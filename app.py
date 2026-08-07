@@ -210,7 +210,6 @@ with tabs[0]:
     now_vn = get_vietnam_now()
     
     with col1:
-        # TÁCH RÕ 3 ĐỐI TƯỢNG RIÊNG BIỆT
         user_role = st.radio("Chọn đối tượng điểm danh:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True)
         
         selected_class = ""
@@ -363,28 +362,40 @@ with tabs[0]:
                     last_time_str = str(last_record.get("Thời Gian", ""))
 
             can_proceed = True
+            
+            # --- KIỂM TRA CHẶT CHẼ THỜI GIAN THEO ĐỐI TƯỢNG ---
             if user_role in ["Giảng viên", "Sinh viên"]:
                 s_h, s_m = LESSON_TIMES[start_lesson]["start"]
                 e_h, e_m = LESSON_TIMES[end_lesson]["end"]
                 sched_start = now_vn.replace(hour=s_h, minute=s_m, second=0, microsecond=0)
                 sched_end = now_vn.replace(hour=e_h, minute=e_m, second=0, microsecond=0)
             else:
+                # Viên chức: Sáng tính từ 07:00, Chiều tính từ 13:00
                 sched_start = now_vn.replace(hour=7, minute=0, second=0) if now_vn.hour < 12 else now_vn.replace(hour=13, minute=0, second=0)
                 sched_end = sched_start + timedelta(hours=4)
 
-            if action_type == "Ra ca (Check-out)":
-                if last_action != "Vào ca (Check-in)":
-                    st.error("Bạn chưa thực hiện Vào ca (Check-in)!")
-                    can_proceed = False
-                elif now_vn < sched_end - timedelta(minutes=10):
-                    time_left = int((sched_end - now_vn).total_seconds() / 60)
-                    st.error(f"Chưa hết giờ ca làm việc/tiết học! Ca học/dạy kết thúc lúc {sched_end.strftime('%H:%M')}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
-                    can_proceed = False
+                # KIỂM TRA ĐI TRỄ > 30 PHÚT DÀNH CHO VIÊN CHỨC
+                if action_type == "Vào ca (Check-in)":
+                    late_limit = sched_start + timedelta(minutes=30)
+                    if now_vn > late_limit:
+                        session_name = "buổi Sáng (07:00)" if now_vn.hour < 12 else "buổi Chiều (13:00)"
+                        st.error(f"Từ chối điểm danh: Đã quá 30 phút so với giờ vào ca {session_name}! Giờ hiện tại: {now_vn.strftime('%H:%M')}. Vui lòng sang Tab 'NỘP MINH CHỨNG / BÁO NGHỈ PHÉP' để gửi yêu cầu.")
+                        can_proceed = False
 
-            elif action_type == "Vào ca (Check-in)":
-                if last_action == "Vào ca (Check-in)":
-                    st.warning(f"Bạn đã Vào ca trước đó lúc `{last_time_str}`. Vui lòng thực hiện 'Ra ca (Check-out)' trước khi bắt đầu ca tiếp theo!")
-                    can_proceed = False
+            if can_proceed:
+                if action_type == "Ra ca (Check-out)":
+                    if last_action != "Vào ca (Check-in)":
+                        st.error("Bạn chưa thực hiện Vào ca (Check-in)!")
+                        can_proceed = False
+                    elif now_vn < sched_end - timedelta(minutes=10):
+                        time_left = int((sched_end - now_vn).total_seconds() / 60)
+                        st.error(f"Chưa hết giờ ca làm việc/tiết học! Ca học/dạy kết thúc lúc {sched_end.strftime('%H:%M')}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
+                        can_proceed = False
+
+                elif action_type == "Vào ca (Check-in)":
+                    if last_action == "Vào ca (Check-in)":
+                        st.warning(f"Bạn đã Vào ca trước đó lúc `{last_time_str}`. Vui lòng thực hiện 'Ra ca (Check-out)' trước khi bắt đầu ca tiếp theo!")
+                        can_proceed = False
 
             if can_proceed:
                 status = "Đúng giờ"
@@ -403,8 +414,8 @@ with tabs[0]:
                 else:
                     if action_type == "Vào ca (Check-in)":
                         if now_vn > sched_start + timedelta(minutes=15):
-                            status = "Đi trễ"
-                            note = f"Ca làm việc bắt đầu {sched_start.strftime('%H:%M')}."
+                            status = "Đi trễ (Có bù giờ)"
+                            note = f"Đi trễ {int((now_vn - sched_start).total_seconds()/60)} phút. Giờ bắt đầu: {sched_start.strftime('%H:%M')}."
                         else:
                             note = "Ca làm việc 4 tiếng"
                     else:
@@ -420,7 +431,7 @@ with tabs[0]:
                 if success:
                     st.success(f"Ghi nhận thành công cho {user_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
-# ----------------- TAB 2: MINH CHỨNG (TÁCH 3 ĐỐI TƯỢNG VÀ HIỂN THỊ HỌ TÊN CHUẨN XÁC) -----------------
+# ----------------- TAB 2: MINH CHỨNG -----------------
 with tabs[1]:
     st.subheader("Nộp minh chứng đi trễ / Báo xin nghỉ phép")
     
@@ -543,7 +554,7 @@ with tabs[1]:
                 else:
                     st.error("Lỗi khi gửi dữ liệu lên OneDrive!")
 
-# ----------------- TAB 3: DASHBOARD BÁO CÁO (TÁCH RÕ 3 ĐỐI TƯỢNG + BIỂU ĐỒ ĐẸP MẮT) -----------------
+# ----------------- TAB 3: DASHBOARD BÁO CÁO -----------------
 with tabs[2]:
     st.subheader("Báo cáo và Thống kê Trực quan")
     
@@ -568,7 +579,6 @@ with tabs[2]:
             on_time_count = len(history_df[history_df["Trạng Thái"] == "Đúng giờ"])
             late_count = total_records - on_time_count
             
-            # Khung Metric tổng quan
             c1, c2, c3 = st.columns(3)
             c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", total_records)
             c2.metric("Lượt Đúng giờ", on_time_count)
@@ -576,7 +586,6 @@ with tabs[2]:
             
             st.markdown("---")
             
-            # KHU VỰC HIỂN THỊ BIỂU ĐỒ THỐNG KÊ
             col_chart1, col_chart2 = st.columns(2)
             
             with col_chart1:
@@ -629,7 +638,6 @@ with tabs[2]:
         else:
             st.metric("Tổng số đơn đã gửi", len(mc_df))
             
-            # Biểu đồ đơn nghỉ theo nhóm đối tượng
             col_mc_chart1, col_mc_chart2 = st.columns(2)
             with col_mc_chart1:
                 st.markdown("**Phân loại Đơn theo Đối tượng**")
