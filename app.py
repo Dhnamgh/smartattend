@@ -84,33 +84,30 @@ st.markdown("""
 
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
 
-# Siết chặt bán kính cho phép xuống đúng 70.0 mét
+# Siết chặt bán kính kiểm tra GPS xuống 70m
 MAX_ALLOWED_RADIUS = 70.0 
 
-# Danh sách IP chung cho mạng nội bộ nhà trường
-SCHOOL_SHARED_IPS = ["118.69.1.1", "118.69.1.2", "103.180.97.163", "103.180.97.161", "203.162.1.1", "171.244.1.1"]
+# Khai báo DẢI MẠNG (Prefix) của nhà trường - Chấp nhận mọi IP bắt đầu bằng các dải này
+ALLOWED_IP_PREFIXES = ["103.180.97.", "118.69.1.", "203.162.1.", "171.244.1."]
 
 CAMPUSES = {
     "CS1": {
         "name": "Cơ sở 1",
         "address": "217 Hồng Bàng, Phường 11, Quận 5, TP.HCM",
         "lat": 10.755061,  
-        "lng": 106.662962, 
-        "allowed_ips": SCHOOL_SHARED_IPS
+        "lng": 106.662962
     },
     "CS2": {
         "name": "Cơ sở 2",
         "address": "201 Nguyễn Chí Thanh, Phường 12, Quận 5, TP.HCM",
         "lat": 10.757973, 
-        "lng": 106.661271,
-        "allowed_ips": SCHOOL_SHARED_IPS
+        "lng": 106.661271
     },
     "CS3": {
         "name": "Cơ sở 3",
         "address": "41 Đinh Tiên Hoàng, Phường Bến Nghé, Quận 1, TP.HCM",
         "lat": 10.785324, 
-        "lng": 106.702328,
-        "allowed_ips": SCHOOL_SHARED_IPS
+        "lng": 106.702328
     }
 }
 
@@ -328,7 +325,6 @@ with tabs[0]:
         
         action_type = st.radio("Thao tác ca làm việc:", ["Vào ca (Check-in)", "Ra ca (Check-out)"], horizontal=True)
 
-        # Tính khoảng cách GPS thực tế tới từng cơ sở
         distances = {}
         auto_detected_key = None
         if user_lat is not None and user_lng is not None:
@@ -368,13 +364,14 @@ with tabs[0]:
             campus_display_name = "Không xác định"
             st.markdown(f'<div class="status-box-error">Vui lòng chọn Cơ sở điểm danh hợp lệ ở menu phía trên!</div>', unsafe_allow_html=True)
 
+        # Đối soát IP theo dải Subnet (Prefix Matching)
         ip_valid = False
         if detected_campus_info and user_ip:
-            ip_valid = user_ip in detected_campus_info["allowed_ips"]
+            ip_valid = any(user_ip.startswith(prefix) for prefix in ALLOWED_IP_PREFIXES)
             if ip_valid:
-                st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Đúng Wi-Fi trường)</div>', unsafe_allow_html=True)
+                st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Đúng Wi-Fi nội bộ nhà trường)</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi nội bộ cơ sở này</div>', unsafe_allow_html=True)
+                st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi nội bộ nhà trường</div>', unsafe_allow_html=True)
 
     if st.button("XÁC NHẬN ĐIỂM DANH", use_container_width=True):
         if len(input_id) != 8 or not fetched_name:
