@@ -56,22 +56,22 @@ CAMPUSES = {
     "CS1": {
         "name": "Cơ sở 1",
         "address": "217 Hồng Bàng, Phường 11, Quận 5, TP.HCM",
-        "lat": 10.75542, 
-        "lng": 106.66258,
+        "lat": 10.755061,  # Tọa độ chuẩn từ Google Maps
+        "lng": 106.662962, # Tọa độ chuẩn từ Google Maps
         "allowed_ips": ["118.69.1.1", "118.69.1.2"]
     },
     "CS2": {
         "name": "Cơ sở 2",
         "address": "201 Nguyễn Chí Thanh, Phường 12, Quận 5, TP.HCM",
-        "lat": 10.75831, 
-        "lng": 106.66014,
+        "lat": 10.758310, 
+        "lng": 106.660140,
         "allowed_ips": ["203.162.1.1"]
     },
     "CS3": {
         "name": "Cơ sở 3",
         "address": "41 Đinh Tiên Hoàng, Phường Bến Nghé, Quận 1, TP.HCM",
-        "lat": 10.78532, 
-        "lng": 106.70012,
+        "lat": 10.785320, 
+        "lng": 106.700120,
         "allowed_ips": ["171.244.1.1"]
     }
 }
