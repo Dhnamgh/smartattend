@@ -81,7 +81,6 @@ CAMPUSES = {
     "CS3": {"name": "Cơ sở 3", "address": "41 Đinh Tiên Hoàng, Phường Bến Nghé, Quận 1, TP.HCM", "lat": 10.785324, "lng": 106.702328}
 }
 
-# 10 Tiết chuẩn trong ngày
 LESSON_TIMES = {
     1:  {"start": (7, 0),   "end": (7, 50)},
     2:  {"start": (7, 50),  "end": (8, 40)},
@@ -139,14 +138,16 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
     except Exception:
         return pd.DataFrame()
 
-def append_row_to_onedrive_excel(file_path, row_values):
+def append_row_to_onedrive_excel(file_path, row_values, custom_cols=None):
     token = get_azure_token()
     if not token: return False
     try:
         base_url = build_graph_url(file_path)
         content_url = f"{base_url}/content"
         get_res = requests.get(content_url, headers={"Authorization": f"Bearer {token}"})
-        cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Bộ Môn / Lớp", "Cơ Sở", "Thời Gian", "Thao Tác", "Khoảng Cách (m)", "Địa Chỉ IP", "Trạng Thái", "Ghi Chú"]
+        
+        default_cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Bộ Môn / Lớp", "Cơ Sở", "Thời Gian", "Thao Tác", "Khoảng Cách (m)", "Địa Chỉ IP", "Trạng Thái", "Ghi Chú"]
+        cols = custom_cols if custom_cols else default_cols
         
         if get_res.status_code == 200:
             try:
@@ -171,6 +172,21 @@ def append_row_to_onedrive_excel(file_path, row_values):
             elif put_res.status_code == 423: time.sleep(1.5 * (attempt + 1))
             else: return False
         return False
+    except Exception:
+        return False
+
+def upload_file_to_onedrive(folder_path, file_name, file_bytes):
+    token = get_azure_token()
+    if not token: return False
+    try:
+        full_path = f"{folder_path}/{file_name}"
+        content_url = f"{build_graph_url(full_path)}/content"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream"
+        }
+        res = requests.put(content_url, headers=headers, data=file_bytes)
+        return res.status_code in [200, 201]
     except Exception:
         return False
 
@@ -246,12 +262,9 @@ with tabs[0]:
         if user_group == "Sinh viên":
             st.text_input("Tên học phần:", value=str(fetched_course), disabled=True)
 
-        # LỌC THỜI GIAN THEO TIẾT HỌC THỰC TẾ
         start_lesson, end_lesson = 1, 1
         if sub_role in ["Giảng viên", "Sinh viên"]:
             st.markdown("**Đăng ký ca học/giảng dạy (Tiết 1 đến 10):**")
-            
-            # Tự động loại bỏ các tiết đã qua thời gian kết thúc
             valid_start_lessons = []
             for t in range(1, 11):
                 t_end_h, t_end_m = LESSON_TIMES[t]["end"]
@@ -259,8 +272,7 @@ with tabs[0]:
                 if now_vn <= t_end_dt or t >= 6 and now_vn.hour < 12: 
                     valid_start_lessons.append(t)
             
-            if not valid_start_lessons:
-                valid_start_lessons = list(range(1, 11))
+            if not valid_start_lessons: valid_start_lessons = list(range(1, 11))
 
             c_t1, c_t2 = st.columns(2)
             with c_t1:
@@ -341,9 +353,8 @@ with tabs[0]:
             }
             target_excel_path = file_map.get(sub_role, "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx")
             
-            # 1. ĐỐI SOÁT LỊCH SỬ ĐIỂM DANH
             existing_df = read_excel_from_onedrive(target_excel_path)
-            last_action, last_time_str, last_note = None, "", ""
+            last_action, last_time_str = None, ""
             
             if not existing_df.empty and "Mã Số" in existing_df.columns:
                 existing_df["CLEAN_ID"] = existing_df["Mã Số"].astype(str).str.strip().str.zfill(8)
@@ -352,22 +363,17 @@ with tabs[0]:
                     last_record = user_records.iloc[-1]
                     last_action = str(last_record.get("Thao Tác", "")).strip()
                     last_time_str = str(last_record.get("Thời Gian", ""))
-                    last_note = str(last_record.get("Ghi Chú", ""))
 
-            # 2. LOGIC KIỂM TRA CHẶT CHẼ CA LÀM VIỆC / TIẾT HỌC
             can_proceed = True
-            
-            # Tính thời gian bắt đầu và kết thúc của ca đăng ký hiện tại
             if sub_role in ["Giảng viên", "Sinh viên"]:
                 s_h, s_m = LESSON_TIMES[start_lesson]["start"]
                 e_h, e_m = LESSON_TIMES[end_lesson]["end"]
                 sched_start = now_vn.replace(hour=s_h, minute=s_m, second=0, microsecond=0)
                 sched_end = now_vn.replace(hour=e_h, minute=e_m, second=0, microsecond=0)
-            else: # Viên chức 4 tiếng
+            else:
                 sched_start = now_vn.replace(hour=7, minute=0, second=0) if now_vn.hour < 12 else now_vn.replace(hour=13, minute=0, second=0)
                 sched_end = sched_start + timedelta(hours=4)
 
-            # KIỂM TRA KHÔNG CHO RA CA KHI CHƯA HẾT CA
             if action_type == "Ra ca (Check-out)":
                 if last_action != "Vào ca (Check-in)":
                     st.error("Bạn chưa thực hiện Vào ca (Check-in)!")
@@ -377,10 +383,8 @@ with tabs[0]:
                     st.error(f"Chưa hết giờ ca làm việc/tiết học! Ca học/dạy kết thúc lúc {sched_end.strftime('%H:%M')}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
                     can_proceed = False
 
-            # KIỂM TRA KHÔNG CHO VÀO CA MỚI KHI CA CŨ CHƯA CHECK-OUT
             elif action_type == "Vào ca (Check-in)":
                 if last_action == "Vào ca (Check-in)":
-                    # Kiểm tra xem ca cũ đã trôi qua thời gian kết thúc chưa
                     st.warning(f"Bạn đã Vào ca trước đó lúc `{last_time_str}`. Vui lòng thực hiện 'Ra ca (Check-out)' trước khi bắt đầu ca tiếp theo!")
                     can_proceed = False
 
@@ -418,51 +422,118 @@ with tabs[0]:
                 if success:
                     st.success(f"Ghi nhận thành công cho {sub_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
-# ----------------- TAB 2: MINH CHỨNG -----------------
+# ----------------- TAB 2: MINH CHỨNG (ĐÃ TÍCH HỢP TỰ ĐỘNG LƯU ONEDRIVE) -----------------
 with tabs[1]:
     st.subheader("Nộp minh chứng đi trễ / Báo xin nghỉ phép")
+    
     with st.form("form_minh_chung"):
-        mc_id = st.text_input("Nhập Mã số 8 chữ số:")
+        mc_group = st.radio("Đối tượng nộp:", ["Giảng viên/Viên chức", "Sinh viên"], horizontal=True)
+        mc_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8).strip()
         mc_type = st.selectbox("Loại yêu cầu:", ["Nghỉ phép Buổi Sáng", "Nghỉ phép Buổi Chiều", "Nghỉ phép Cả Ngày", "Minh chứng Đi trễ > 30 phút"])
         mc_reason = st.text_area("Lý do chi tiết:")
-        mc_file = st.file_uploader("Tải lên file đi kèm (Ảnh / PDF):", type=["png", "jpg", "pdf"])
-        btn_submit = st.form_submit_button("GỬI YÊU CẦU")
-        if btn_submit: st.info("Yêu cầu đã được ghi nhận và chuyển đến Ban Giám hiệu / Lãnh đạo Khoa duyệt.")
+        mc_file = st.file_uploader("Tải lên file đi kèm (Ảnh / PDF):", type=["png", "jpg", "jpeg", "pdf"])
+        
+        btn_submit = st.form_submit_button("GỬI YÊU CẦU MINH CHỨNG")
+        
+        if btn_submit:
+            if len(mc_id) != 8 or not mc_reason:
+                st.error("Vui lòng nhập đầy đủ Mã số (8 chữ số) và Lý do chi tiết!")
+            else:
+                # 1. Tra cứu họ tên người nộp
+                applicant_name = "N/A"
+                applicant_unit = "N/A"
+                
+                if mc_group == "Giảng viên/Viên chức":
+                    cbvc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
+                    if not cbvc_df.empty:
+                        cbvc_df["CLEAN_ID"] = cbvc_df.iloc[:, 0].astype(str).str.strip().str.zfill(8)
+                        match = cbvc_df[cbvc_df["CLEAN_ID"] == mc_id]
+                        if not match.empty:
+                            applicant_name = match.iloc[0, 1]
+                            applicant_unit = match.iloc[0, 2] if len(match.columns) > 2 else ""
+                
+                # 2. Xử lý tải file đính kèm lên OneDrive
+                file_saved_name = "Không có file"
+                if mc_file is not None:
+                    file_ext = mc_file.name.split(".")[-1]
+                    timestamp_str = now_vn.strftime("%Y%m%d_%H%M%S")
+                    file_saved_name = f"{mc_id}_{timestamp_str}.{file_ext}"
+                    
+                    # Upload file lên thư mục OGSM/ATTENDANCE/DATA/MINHCHUNG_FILES/
+                    upload_success = upload_file_to_onedrive(
+                        "OGSM/ATTENDANCE/DATA/MINHCHUNG_FILES", 
+                        file_saved_name, 
+                        mc_file.getvalue()
+                    )
+                    if not upload_success:
+                        st.warning("Không thể tải file đính kèm lên OneDrive, nhưng đơn sẽ vẫn được ghi nhận.")
+
+                # 3. Ghi thông tin đơn vào file MinhChung_NghiPhep.xlsx
+                mc_cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Loại Yêu Cầu", "Lý Do", "File Minh Chứng", "Thời Gian Gửi", "Trạng Thái Duyệt"]
+                mc_row = [
+                    mc_id, str(applicant_name), mc_group, str(applicant_unit),
+                    mc_type, mc_reason, file_saved_name, now_vn.strftime("%Y-%m-%d %H:%M:%S"), "Chờ duyệt"
+                ]
+                
+                saved_mc = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx", mc_row, custom_cols=mc_cols)
+                
+                if saved_mc:
+                    st.success("Yêu cầu minh chứng / báo nghỉ của bạn đã được ghi nhận thành công vào hệ thống và chuyển đến Lãnh đạo duyệt!")
+                else:
+                    st.error("Lỗi khi ghi nhận dữ liệu đơn lên OneDrive!")
 
 # ----------------- TAB 3: DASHBOARD -----------------
 with tabs[2]:
-    st.subheader("Báo cáo và Thống kê Điểm danh")
-    selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"])
+    st.subheader("Báo cáo và Thống kê Điểm danh & Minh chứng")
     
-    file_map_report = {
-        "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
-        "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
-        "Sinh viên": "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
-    }
-    report_file_path = file_map_report[selected_report_role]
+    view_mode = st.radio("Chọn loại báo cáo xem:", ["Nhật ký điểm danh", "Danh sách đơn minh chứng / nghỉ phép"], horizontal=True)
     
-    if st.button("CẬP NHẬT DỮ LIỆU TỪ ONEDRIVE"):
-        st.session_state.history_df = read_excel_from_onedrive(report_file_path)
-
-    history_df = read_excel_from_onedrive(report_file_path)
-    
-    if history_df.empty:
-        st.info(f"Chưa có dữ liệu điểm danh trên OneDrive cho nhóm **{selected_report_role}**.")
-    else:
-        c1, c2, c3 = st.columns(3)
-        c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", len(history_df))
-        c2.metric("Lượt Đúng giờ", len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]))
-        c3.metric("Lượt Trễ / Về sớm", len(history_df[history_df["Trạng Thái"] != "Đúng giờ"]))
+    if view_mode == "Nhật ký điểm danh":
+        selected_report_role = st.selectbox("Chọn nhóm dữ liệu:", ["Giảng viên", "Viên chức", "Sinh viên"])
+        file_map_report = {
+            "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
+            "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
+            "Sinh viên": "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
+        }
+        report_file_path = file_map_report[selected_report_role]
         
-        st.dataframe(history_df, use_container_width=True)
-        
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            history_df.to_excel(writer, sheet_name='Sheet1', index=False)
+        history_df = read_excel_from_onedrive(report_file_path)
+        if history_df.empty:
+            st.info(f"Chưa có dữ liệu điểm danh trên OneDrive cho nhóm **{selected_report_role}**.")
+        else:
+            c1, c2, c3 = st.columns(3)
+            c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", len(history_df))
+            c2.metric("Lượt Đúng giờ", len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]))
+            c3.metric("Lượt Trễ / Về sớm", len(history_df[history_df["Trạng Thái"] != "Đúng giờ"]))
             
-        st.download_button(
-            label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
-            data=buffer.getvalue(),
-            file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{get_vietnam_now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            st.dataframe(history_df, use_container_width=True)
+            
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                history_df.to_excel(writer, sheet_name='Sheet1', index=False)
+                
+            st.download_button(
+                label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
+                data=buffer.getvalue(),
+                file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+    else:
+        # BÁO CÁO MINH CHỨNG
+        mc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx")
+        if mc_df.empty:
+            st.info("Chưa có đơn xin nghỉ phép / minh chứng nào được gửi lên hệ thống.")
+        else:
+            st.metric("Tổng số đơn đã gửi", len(mc_df))
+            st.dataframe(mc_df, use_container_width=True)
+            
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                mc_df.to_excel(writer, sheet_name='MinhChung', index=False)
+                
+            st.download_button(
+                label="XUẤT BÁO CÁO MINH CHỨNG (.XLSX)",
+                data=buffer.getvalue(),
+                file_name=f"Bao_Cao_Minh_Chung_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
