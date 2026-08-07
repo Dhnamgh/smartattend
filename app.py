@@ -100,7 +100,7 @@ def get_azure_token():
         st.error(f"Lỗi cấu hình Azure Secrets: {str(e)}")
         return None
 
-@st.cache_data(ttl=5)
+# BỎ DÒNG CACHE ĐỂ ĐỌC TRỰC TIẾP FILE MỚI NHẤT TRÊN ONEDRIVE
 def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
     if not token:
@@ -112,17 +112,23 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             excel_bytes = io.BytesIO(response.content)
-            # Nếu truyền sheet_name thì đọc đúng sheet đó, không thì đọc sheet đầu tiên
+            
+            # Đọc file Excel không qua cache
             if sheet_name:
-                df = pd.read_excel(excel_bytes, sheet_name=sheet_name, dtype=str, engine="openpyxl")
+                try:
+                    df = pd.read_excel(excel_bytes, sheet_name=sheet_name, dtype=str, engine="openpyxl")
+                except Exception:
+                    df = pd.read_excel(excel_bytes, dtype=str, engine="openpyxl")
             else:
                 df = pd.read_excel(excel_bytes, dtype=str, engine="openpyxl")
             
             df.columns = [str(c).strip().replace('\xa0', '') for c in df.columns]
             return df
         else:
+            st.warning(f"Không thể truy cập file trên OneDrive (Mã lỗi HTTP: {response.status_code}). Đường dẫn: {file_path}")
             return pd.DataFrame()
-    except Exception:
+    except Exception as e:
+        st.error(f"Lỗi xử lý file Excel: {str(e)}")
         return pd.DataFrame()
 
 def append_row_to_onedrive_excel(file_path, table_name, row_values):
@@ -178,7 +184,6 @@ with tabs[0]:
         
         if len(input_id) == 8:
             if user_group == "Cán bộ / Viên chức / Giảng viên":
-                # Đọc chính xác sheet Nhansu
                 target_df = read_excel_from_onedrive("ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                 if not target_df.empty:
                     col_msvc = target_df.columns[0]
