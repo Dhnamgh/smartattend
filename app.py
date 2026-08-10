@@ -718,7 +718,7 @@ with tabs[2]:
         st.success("Đã xác thực quyền Quản trị viên!")
         st.markdown("---")
         
-        # MẶC ĐỊNH CHỌN "Nhật ký điểm danh chi tiết & Biểu đồ" LÀM CHỨC NĂNG ĐẦU TIÊN
+        # MẶC ĐỊNH CHỌN "Nhật ký điểm danh chi tiết & Biểu đồ" LÀM CHỨC NĂNG ĐẦU TIÊN (INDEX=0)
         view_mode = st.radio("Chọn loại báo cáo:", [
             "Nhật ký điểm danh chi tiết & Biểu đồ", 
             "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)", 
@@ -736,7 +736,7 @@ with tabs[2]:
             else:
                 unit_col = "Bộ Môn - Lớp" if "Bộ Môn - Lớp" in history_df.columns else ("Bộ Môn / Lớp" if "Bộ Môn / Lớp" in history_df.columns else ("Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]))
                 
-                # Tùy chọn lọc theo Bộ môn / Lớp / Đơn vị (Mặc định: Tất cả)
+                # Tùy chọn lọc theo Bộ môn / Lớp / Đơn vị (Mặc định: Tất cả - Toàn Khoa)
                 available_units = ["Tất cả (Toàn Khoa / Toàn Trường)"] + sorted([str(u) for u in history_df[unit_col].dropna().unique() if str(u).strip() != ""])
                 selected_unit_filter = st.selectbox("📌 Lọc dữ liệu theo Bộ môn / Lớp / Đơn vị:", available_units, index=0, key="dashboard_unit_filter")
                 
@@ -902,7 +902,7 @@ with tabs[2]:
 
                 st.dataframe(mc_df, use_container_width=True)
                 
- buffer = io.BytesIO()
+                buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                     mc_df.to_excel(writer, sheet_name='MinhChung', index=False)
                     
