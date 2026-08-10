@@ -129,26 +129,50 @@ def get_vietnam_now():
     return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=7)))
 
 # ================= 2. KẾT NỐI FIREBASE & MICROSOFT GRAPH =================
+# ================= 2. KẾT NỐI FIREBASE & MICROSOFT GRAPH =================
 @st.cache_resource
 def init_firebase():
     if not firebase_admin._apps:
         try:
+            # Lấy thông tin từ Secrets
             fb_sec = dict(st.secrets["firebase"])
-            if "private_key" in fb_sec:
-                fb_sec["private_key"] = fb_sec["private_key"].replace("\\n", "\n")
             
+            # Lấy databaseURL và tách khỏi cert dict
             db_url = fb_sec.get("databaseURL")
-            cred = credentials.Certificate(fb_sec)
+            cert_dict = {k: v for k, v in fb_sec.items() if k != "databaseURL"}
+            
+            # Xử lý tự động lỗi ký tự xuống dòng trong Private Key
+            if "private_key" in cert_dict:
+                cert_dict["private_key"] = cert_dict["private_key"].replace("\\n", "\n")
+            
+            cred = credentials.Certificate(cert_dict)
             firebase_admin.initialize_app(cred, {'databaseURL': db_url})
         except Exception as e:
             st.error(f"Lỗi kết nối cấu hình Firebase SDK: {str(e)}")
 
 init_firebase()
 
+def clean_dict_for_firebase(d):
+    """Hàm làm sạch dữ liệu: Chuyển toàn bộ NaN/None thành chuỗi an toàn cho Firebase"""
+    cleaned = {}
+    for k, v in d.items():
+        if pd.isna(v) or v is None:
+            cleaned[k] = ""
+        elif isinstance(v, (float, int)):
+            if math.isnan(v) or math.isinf(v):
+                cleaned[k] = 0.0
+            else:
+                cleaned[k] = v
+        else:
+            cleaned[k] = str(v)
+    return cleaned
+
 def save_to_firebase(node_name, record_dict):
     try:
+        # Làm sạch gói dữ liệu trước khi gửi
+        cleaned_data = clean_dict_for_firebase(record_dict)
         ref = db.reference(node_name)
-        ref.push(record_dict)
+        ref.push(cleaned_data)
         return True, None
     except Exception as e:
         return False, str(e)
