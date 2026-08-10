@@ -136,7 +136,6 @@ def init_firebase():
             fb_sec = dict(st.secrets["firebase"])
             db_url = fb_sec.get("databaseURL")
             
-            # Tách databaseURL ra để không làm hỏng JSON của credentials
             cert_dict = {k: v for k, v in fb_sec.items() if k != "databaseURL"}
             
             if "private_key" in cert_dict:
@@ -154,12 +153,10 @@ def clean_dict_for_firebase(d):
     cleaned = {}
     forbidden_chars = ["/", ".", "#", "$", "[", "]"]
     for k, v in d.items():
-        # Làm sạch Tên Cột (Key)
         clean_k = str(k)
         for char in forbidden_chars:
             clean_k = clean_k.replace(char, "-")
 
-        # Làm sạch Giá trị (Value)
         if pd.isna(v) or v is None:
             cleaned[clean_k] = ""
         elif isinstance(v, (float, int)):
@@ -219,9 +216,8 @@ def build_graph_url(file_path):
     else:
         return f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:"
 
-# Thêm Cache 1 giờ (3600 giây) cho hàm đọc file từ OneDrive
-# Đổi ttl=3600 thành ttl=300 (Bộ nhớ tự làm mới sau mỗi 5 phút)
-@st.cache_data(ttl=300)
+# Bộ nhớ tạm tự động tải lại từ OneDrive sau mỗi 3 phút (180 giây)
+@st.cache_data(ttl=180)
 def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
     if not token: return pd.DataFrame()
@@ -463,7 +459,60 @@ with tabs[0]:
                     sched_start = now_vn.replace(hour=13, minute=0, second=0, microsecond=0)
                     sched_end = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
 
-                if action_type == "Vào ca (Check-in)":
+            # ================= TỰ ĐỘNG RA CA NẾU QUÊN CHECK-OUT CA TRƯỚC =================
+            if action_type == "Vào ca (Check-in)" and last_action == "Vào ca (Check-in)":
+                try:
+                    last_time_dt = datetime.strptime(last_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=7)))
+                    
+                    is_previous_shift = (last_time_dt.hour < 12 and now_vn.hour >= 12) or (last_time_dt.date() < now_vn.date())
+                    
+                    if is_previous_shift:
+                        # Xác định mốc bắt đầu chuẩn & mốc kết thúc chuẩn theo lịch có nghỉ giải lao
+                        if "Thực hành" in last_note:
+                            base_start_h, base_start_m = 7 if last_time_dt.hour < 12 else 13, 30
+                            base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 40
+                        elif "Lý thuyết" in last_note:
+                            base_start_h, base_start_m = 7 if last_time_dt.hour < 12 else 13, 0
+                            base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 20
+                        else: # Viên chức
+                            base_start_h, base_start_m = 7 if last_time_dt.hour < 12 else 13, 0
+                            base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 0
+
+                        base_start_dt = last_time_dt.replace(hour=base_start_h, minute=base_start_m, second=0, microsecond=0)
+                        base_end_dt = last_time_dt.replace(hour=base_end_h, minute=base_end_m, second=0, microsecond=0)
+                        
+                        # Tính số phút vào trễ so với giờ bắt đầu ca chuẩn
+                        late_minutes = max(0, int((last_time_dt - base_start_dt).total_seconds() / 60)) if last_time_dt > base_start_dt else 0
+                        
+                        # Thời gian tự động Ra ca = Giờ kết thúc ca chuẩn + Số phút bù trễ
+                        auto_checkout_dt = base_end_dt + timedelta(minutes=late_minutes)
+                        
+                        unit_sub_disp = f"{fetched_sub} ({selected_class})" if user_role == "Sinh viên" else fetched_sub
+
+                        auto_checkout_record = {
+                            "Mã Số": input_id,
+                            "Họ Và Tên": str(fetched_name),
+                            "Đối Tượng": user_role,
+                            "Đơn Vị": str(fetched_unit),
+                            "Bộ Môn - Lớp": str(unit_sub_disp),
+                            "Cơ Sở": campus_display_name,
+                            "Thời Gian": auto_checkout_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                            "Thao Tác": "Ra ca (Check-out)",
+                            "Khoảng Cách (m)": round(curr_dist, 1),
+                            "Địa Chỉ IP": user_ip if user_ip else "N/A",
+                            "Trạng Thái": "Tự động Ra ca",
+                            "Ghi Chú": f"Hệ thống tự động Ra ca do quên Check-out ca trước (Đã tính giờ giải lao & bù trễ {late_minutes} phút)"
+                        }
+                        save_to_firebase(target_node, auto_checkout_record)
+                        st.info(f"Hệ thống đã tự động ghi nhận 'Ra ca' cho ca trước của bạn vào lúc `{auto_checkout_dt.strftime('%Y-%m-%d %H:%M:%S')}`.")
+                        
+                        last_action = "Ra ca (Check-out)"
+                except Exception:
+                    pass
+
+            # ================= KIỂM TRA ĐIỀU KIỆN RA CA / VÀO CA =================
+            if can_proceed:
+                if user_role == "Viên chức" and action_type == "Vào ca (Check-in)":
                     late_limit = sched_start + timedelta(minutes=30)
                     if now_vn > late_limit:
                         st.error(f"Từ chối điểm danh: Đã quá 30 phút so với giờ bắt đầu ca ({sched_start.strftime('%H:%M')})! Giờ hiện tại: {now_vn.strftime('%H:%M')}. Vui lòng sang Tab 'Báo nghỉ phép' để nộp đơn.")
@@ -516,7 +565,7 @@ with tabs[0]:
                     "Họ Và Tên": str(fetched_name),
                     "Đối Tượng": user_role,
                     "Đơn Vị": str(fetched_unit),
-                    "Bộ Môn - Lớp": str(unit_sub_display), # Đã đổi dấu / thành dấu -
+                    "Bộ Môn - Lớp": str(unit_sub_display),
                     "Cơ Sở": campus_display_name,
                     "Thời Gian": now_vn.strftime("%Y-%m-%d %H:%M:%S"),
                     "Thao Tác": action_type,
