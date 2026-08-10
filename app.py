@@ -128,6 +128,18 @@ LESSON_TIMES_PRACTICE = {
 def get_vietnam_now():
     return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=7)))
 
+def shorten_unit_name(name):
+    """Rút gọn tên Bộ môn / Đơn vị để hiển thị mượt mà trên Biểu đồ"""
+    if not name: return ""
+    s = str(name).strip()
+    s = s.replace("Bộ môn", "BM.").replace("Bộ Môn", "BM.")
+    s = s.replace("Giáo dục thể chất", "GDTC").replace("Giáo Dục Thể Chất", "GDTC")
+    s = s.replace("Lý luận chính trị", "LLCT").replace("Lý Luận Chính Trị", "LLCT")
+    s = s.replace("Tổ hành chính tổ chức - văn phòng khoa", "Tổ HCTC-VPK")
+    s = s.replace("Tổ Hành chính Tổ chức - Văn phòng Khoa", "Tổ HCTC-VPK")
+    s = s.replace("Tổ Hành chính Tổ chức - VP Khoa", "Tổ HCTC-VPK")
+    return s
+
 # ================= 2. KẾT NỐI FIREBASE & MICROSOFT GRAPH =================
 @st.cache_resource
 def init_firebase():
@@ -412,7 +424,13 @@ with tabs[0]:
             if ip_valid: st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Wi-Fi trường)</div>', unsafe_allow_html=True)
             else: st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi trường</div>', unsafe_allow_html=True)
 
-    if st.button("XÁC NHẬN ĐIỂM DANH", use_container_width=True):
+    # State xác nhận ra ca sớm
+    if "confirm_early_leave" not in st.session_state:
+        st.session_state["confirm_early_leave"] = False
+
+    btn_confirm = st.button("XÁC NHẬN ĐIỂM DANH", use_container_width=True)
+
+    if btn_confirm or st.session_state["confirm_early_leave"]:
         if is_out_of_hours:
             st.error(f"Điểm danh thất bại: Hiện tại ({now_vn.strftime('%H:%M')}) nằm ngoài giờ làm việc / học tập quy định!")
         elif curr_dist > MAX_ALLOWED_RADIUS or not detected_campus_info:
@@ -442,7 +460,10 @@ with tabs[0]:
                     last_note = str(last_record.get("Ghi Chú", ""))
 
             can_proceed = True
+            is_early_leave = False
+            early_minutes = 0
             
+            # --- TÍNH TOÁN LỊCH CA CHUẨN ---
             if user_role in ["Giảng viên", "Sinh viên"]:
                 s_h, s_m = lesson_schedule[start_lesson]["start"]
                 e_h, e_m = lesson_schedule[end_lesson]["end"]
@@ -456,6 +477,7 @@ with tabs[0]:
                     sched_start = now_vn.replace(hour=13, minute=0, second=0, microsecond=0)
                     sched_end_base = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
 
+            # SỬA LỖI VÀO TRỄ: Tính chính xác từng phút trễ (>0 phút)
             late_minutes_current = max(0, int((now_vn - sched_start).total_seconds() / 60)) if now_vn > sched_start else 0
 
             if user_role in ["Giảng viên", "Viên chức"]:
@@ -485,7 +507,7 @@ with tabs[0]:
                             "Họ Và Tên": str(fetched_name),
                             "Đối Tượng": user_role,
                             "Đơn Vị": str(fetched_unit),
-                            "Bộ Môn - Lớp": str(unit_sub_disp),
+                            "Bộ Môn - Lớp": str(shorten_unit_name(unit_sub_disp)),
                             "Cơ Sở": "Không xác định (Tự động)",
                             "Thời Gian": auto_checkout_dt.strftime("%Y-%m-%d %H:%M:%S"),
                             "Thao Tác": "Ra ca (Check-out)",
@@ -493,6 +515,7 @@ with tabs[0]:
                             "Địa Chỉ IP": "N/A (Tự động)",
                             "Trạng Thái": "Chưa Ra ca (Tự động đóng)",
                             "Số Phút Trễ": 0,
+                            "Số Phút Về Sớm": 0,
                             "Ghi Chú": "Vi phạm quy định: Không thực hiện Ra ca tại trường. Hệ thống tự động đóng ca."
                         }
                         save_to_firebase(target_node, auto_checkout_record)
@@ -501,7 +524,7 @@ with tabs[0]:
                 except Exception:
                     pass
 
-            # ================= KIỂM TRA ĐIỀU KIỆN RA CA / VÀO CA =================
+            # ================= KIỂM TRA ĐIỀU KIỆN & XÁC NHẬN RA CA SỚM =================
             if can_proceed:
                 if user_role == "Viên chức" and action_type == "Vào ca (Check-in)":
                     if now_vn > sched_start + timedelta(minutes=30):
@@ -516,11 +539,25 @@ with tabs[0]:
                     elif user_role == "Viên chức" and ("Ca Sáng" in vc_shift and "Sáng" not in last_note and "07:0" not in last_note):
                         st.error("Cảnh báo: Lượt Vào ca trước đó của bạn thuộc Ca Chiều, không thể Ra ca cho Ca Sáng!")
                         can_proceed = False
-                    elif now_vn < sched_end - timedelta(minutes=10):
-                        time_left = int((sched_end - now_vn).total_seconds() / 60)
-                        msg_extension = " (Đã tính cộng bù phút vào trễ)" if (user_role in ["Giảng viên", "Viên chức"] and late_minutes_current > 15) else ""
-                        st.error(f"Chưa hết giờ ca làm việc! Ca kết thúc lúc {sched_end.strftime('%H:%M')}{msg_extension}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
-                        can_proceed = False
+                    elif now_vn < sched_end:
+                        early_minutes = int((sched_end - now_vn).total_seconds() / 60)
+                        
+                        if not st.session_state["confirm_early_leave"]:
+                            st.warning(f"⚠️ CẢNH BÁO: Còn **{early_minutes} phút** nữa mới hết ca quy định (Ca kết thúc lúc {sched_end.strftime('%H:%M')}).")
+                            st.write("Bạn có chắc chắn muốn Ra ca sớm không? (Việc Ra ca sớm sẽ được ghi nhận để tính thi đua).")
+                            
+                            c_btn1, c_btn2 = st.columns(2)
+                            with c_btn1:
+                                if st.button("CÓ, XÁC NHẬN RA CA SỚM", use_container_width=True):
+                                    st.session_state["confirm_early_leave"] = True
+                                    st.rerun()
+                            with c_btn2:
+                                if st.button("KHÔNG, TIẾP TỤC Ở LẠI", use_container_width=True):
+                                    st.session_state["confirm_early_leave"] = False
+                                    st.info("Đã hủy thao tác Ra ca sớm.")
+                            can_proceed = False
+                        else:
+                            is_early_leave = True
 
                 elif action_type == "Vào ca (Check-in)":
                     if last_action == "Vào ca (Check-in)":
@@ -531,10 +568,11 @@ with tabs[0]:
                 status = "Đúng giờ"
                 note = ""
                 unit_sub_display = f"{fetched_sub} ({selected_class})" if user_role == "Sinh viên" else fetched_sub
+                short_unit_display = shorten_unit_name(unit_sub_display)
 
                 if user_role in ["Giảng viên", "Sinh viên"]:
                     if action_type == "Vào ca (Check-in)":
-                        if late_minutes_current > 15:
+                        if late_minutes_current > 0:
                             status = "Vào trễ"
                             if user_role == "Giảng viên":
                                 note = f"[{study_type}] Đi trễ {late_minutes_current} phút (Phải bù giờ đến {sched_end.strftime('%H:%M')}). Điểm danh lúc {now_vn.strftime('%H:%M')}."
@@ -543,23 +581,31 @@ with tabs[0]:
                         else:
                             note = f"[{study_type}] Lịch Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end_base.strftime('%H:%M')})"
                     else:
-                        note = f"[{study_type}] Hoàn thành ca Tiết {start_lesson}-{end_lesson}"
+                        if is_early_leave:
+                            status = f"Về sớm ({early_minutes} phút)"
+                            note = f"[{study_type}] Ra ca sớm {early_minutes} phút so với quy định ({sched_end.strftime('%H:%M')})"
+                        else:
+                            note = f"[{study_type}] Hoàn thành ca Tiết {start_lesson}-{end_lesson}"
                 else:
                     if action_type == "Vào ca (Check-in)":
-                        if late_minutes_current > 15:
+                        if late_minutes_current > 0:
                             status = "Đi trễ (Có bù giờ)"
                             note = f"[{vc_shift}] Đi trễ {late_minutes_current} phút (Phải bù giờ đến {sched_end.strftime('%H:%M')})."
                         else:
                             note = f"[{vc_shift}] Đúng giờ ({sched_start.strftime('%H:%M')} - {sched_end_base.strftime('%H:%M')})"
                     else:
-                        note = f"[{vc_shift}] Hoàn thành ca làm việc"
+                        if is_early_leave:
+                            status = f"Về sớm ({early_minutes} phút)"
+                            note = f"[{vc_shift}] Ra ca sớm {early_minutes} phút so với quy định ({sched_end.strftime('%H:%M')})"
+                        else:
+                            note = f"[{vc_shift}] Hoàn thành ca làm việc"
 
                 record_data = {
                     "Mã Số": input_id,
                     "Họ Và Tên": str(fetched_name),
                     "Đối Tượng": user_role,
                     "Đơn Vị": str(fetched_unit),
-                    "Bộ Môn - Lớp": str(unit_sub_display),
+                    "Bộ Môn - Lớp": str(short_unit_display),
                     "Cơ Sở": campus_display_name,
                     "Thời Gian": now_vn.strftime("%Y-%m-%d %H:%M:%S"),
                     "Thao Tác": action_type,
@@ -567,11 +613,13 @@ with tabs[0]:
                     "Địa Chỉ IP": user_ip if user_ip else "N/A",
                     "Trạng Thái": status,
                     "Số Phút Trễ": late_minutes_current if status in ["Vào trễ", "Đi trễ (Có bù giờ)"] else 0,
+                    "Số Phút Về Sớm": early_minutes if is_early_leave else 0,
                     "Ghi Chú": note
                 }
                 
                 success, err_msg = save_to_firebase(target_node, record_data)
                 if success:
+                    st.session_state["confirm_early_leave"] = False
                     st.success(f"Ghi nhận thành công cho {user_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
                 else:
                     st.error(f"Lỗi kết nối Firebase: {err_msg}")
@@ -718,7 +766,6 @@ with tabs[2]:
         st.success("Đã xác thực quyền Quản trị viên!")
         st.markdown("---")
         
-        # MẶC ĐỊNH CHỌN "Nhật ký điểm danh chi tiết & Biểu đồ" LÀM CHỨC NĂNG ĐẦU TIÊN (INDEX=0)
         view_mode = st.radio("Chọn loại báo cáo:", [
             "Nhật ký điểm danh chi tiết & Biểu đồ", 
             "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)", 
@@ -736,25 +783,27 @@ with tabs[2]:
             else:
                 unit_col = "Bộ Môn - Lớp" if "Bộ Môn - Lớp" in history_df.columns else ("Bộ Môn / Lớp" if "Bộ Môn / Lớp" in history_df.columns else ("Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]))
                 
-                # Tùy chọn lọc theo Bộ môn / Lớp / Đơn vị (Mặc định: Tất cả - Toàn Khoa)
+                # Rút gọn tên đơn vị trong DataFrame để hiển thị trên Biểu đồ
+                history_df[unit_col] = history_df[unit_col].apply(shorten_unit_name)
+
                 available_units = ["Tất cả (Toàn Khoa / Toàn Trường)"] + sorted([str(u) for u in history_df[unit_col].dropna().unique() if str(u).strip() != ""])
                 selected_unit_filter = st.selectbox("📌 Lọc dữ liệu theo Bộ môn / Lớp / Đơn vị:", available_units, index=0, key="dashboard_unit_filter")
                 
-                # Cắt lọc dữ liệu theo Bộ môn đã chọn
                 if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)":
                     filtered_df = history_df[history_df[unit_col] == selected_unit_filter].copy()
                 else:
                     filtered_df = history_df.copy()
                 
-                # Cập nhật số liệu Metrix theo lọc
                 total_records = len(filtered_df)
                 on_time_count = len(filtered_df[filtered_df["Trạng Thái"] == "Đúng giờ"]) if "Trạng Thái" in filtered_df.columns else 0
+                early_leave_count = len(filtered_df[filtered_df["Trạng Thái"].str.contains("Về sớm", na=False)]) if "Trạng Thái" in filtered_df.columns else 0
                 late_count = total_records - on_time_count
                 
-                c1, c2, c3 = st.columns(3)
+                c1, c2, c3, c4 = st.columns(4)
                 c1.metric(f"Tổng lượt điểm danh ({selected_unit_filter if selected_unit_filter != 'Tất cả (Toàn Khoa / Toàn Trường)' else 'Toàn Khoa'})", total_records)
                 c2.metric("Lượt Đúng giờ", on_time_count)
-                c3.metric("Lượt Trễ / Về sớm / Vi phạm", late_count)
+                c3.metric("Lượt Về sớm", early_leave_count)
+                c4.metric("Lượt Trễ / Vi phạm", late_count - early_leave_count)
                 
                 st.markdown("---")
                 
@@ -771,7 +820,7 @@ with tabs[2]:
                             values="Số Lượng", 
                             names="Trạng Thái", 
                             hole=0.4,
-                            color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900", "#6c757d"]
+                            color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900", "#6c757d", "#17a2b8"]
                         )
                         fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
                         st.plotly_chart(fig_pie, use_container_width=True)
@@ -829,9 +878,11 @@ with tabs[2]:
                 if df_month.empty:
                     st.info(f"Không có dữ liệu điểm danh trong tháng {selected_month}.")
                 else:
-                    if "Số Phút Trễ" not in df_month.columns:
-                        df_month["Số Phút Trễ"] = 0
+                    if "Số Phút Trễ" not in df_month.columns: df_month["Số Phút Trễ"] = 0
+                    if "Số Phút Về Sớm" not in df_month.columns: df_month["Số Phút Về Sớm"] = 0
+                    
                     df_month["Số Phút Trễ"] = pd.to_numeric(df_month["Số Phút Trễ"], errors='coerce').fillna(0)
+                    df_month["Số Phút Về Sớm"] = pd.to_numeric(df_month["Số Phút Về Sớm"], errors='coerce').fillna(0)
 
                     summary_list = []
                     grouped = df_month.groupby("Mã Số")
@@ -839,12 +890,15 @@ with tabs[2]:
                         name = group["Họ Và Tên"].iloc[0] if "Họ Và Tên" in group.columns else ""
                         unit = group["Đơn Vị"].iloc[0] if "Đơn Vị" in group.columns else ""
                         sub_class = group["Bộ Môn - Lớp"].iloc[0] if "Bộ Môn - Lớp" in group.columns else (group["Bộ Môn / Lớp"].iloc[0] if "Bộ Môn / Lớp" in group.columns else "")
+                        sub_class = shorten_unit_name(sub_class)
                         
                         total_att = len(group)
                         on_time = len(group[group["Trạng Thái"] == "Đúng giờ"])
                         late_cnt = len(group[group["Trạng Thái"].str.contains("trễ|Trễ", na=False)])
+                        early_cnt = len(group[group["Trạng Thái"].str.contains("Về sớm", na=False)])
                         unclosed_cnt = len(group[group["Trạng Thái"].str.contains("Chưa Ra ca", na=False)])
                         total_late_min = int(group["Số Phút Trễ"].sum())
+                        total_early_min = int(group["Số Phút Về Sớm"].sum())
                         
                         summary_list.append({
                             "Mã Số": ms,
@@ -855,8 +909,10 @@ with tabs[2]:
                             "Tổng Số Lượt Điểm Danh": total_att,
                             "Số Lượt Đúng Giờ": on_time,
                             "Số Lượt Đi Trễ": late_cnt,
-                            "Số Lượt Quên Ra Ca": unclosed_cnt,
-                            "Tổng Số Phút Trễ (Tháng)": total_late_min
+                            "Tổng Phút Trễ": total_late_min,
+                            "Số Lượt Về Sớm": early_cnt,
+                            "Tổng Phút Về Sớm": total_early_min,
+                            "Số Lượt Quên Ra Ca": unclosed_cnt
                         })
                     
                     sum_df = pd.DataFrame(summary_list)
