@@ -16,16 +16,25 @@ st.set_page_config(page_title="HỆ THỐNG ĐIỂM DANH UMP", layout="wide")
 
 st.markdown("""
 <style>
-    /* Ẩn triệt để các nút quản trị Streamlit ở góc màn hình điện thoại & máy tính */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stAppDeployButton {display:none !important;}
-    [data-testid="stStatusWidget"] {display:none !important;}
-    div[class*="viewerBadge"] {display:none !important;}
-    div[class*="styles_viewerBadge"] {display:none !important;}
+    /* ẨN TRIỆT ĐỂ 100% CÁC NÚT QUẢN TRỊ, BADGE VÀ TOOLBAR CỦA STREAMLIT CLOUD */
+    #MainMenu {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+    header {visibility: hidden !important;}
     
-    /* Style cho giao diện app */
+    /* Ẩn các nút Toolbar, Viewer Badge, Status Widget & Action Buttons */
+    .stAppDeployButton {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    [data-testid="stToolbar"] {display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stHeader"] {display: none !important;}
+    
+    /* Ẩn các vương miện / lá cờ / badge đè ở góc dưới bên phải */
+    div[class*="viewerBadge"] {display: none !important;}
+    div[class*="styles_viewerBadge"] {display: none !important;}
+    div[class*="viewerBadgeContainer"] {display: none !important;}
+    iframe[title*="streamlit"] {display: none !important;}
+    
+    /* Style chuẩn cho giao diện app UMP */
     div[data-baseweb="tab-list"] { gap: 6px; }
     button[data-baseweb="tab"] {
         background-color: #1877F2 !important;
