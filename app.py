@@ -150,18 +150,25 @@ def init_firebase():
 init_firebase()
 
 def clean_dict_for_firebase(d):
-    """Làm sạch gói dữ liệu trước khi chuyển thành JSON gửi lên Firebase"""
+    """Làm sạch dữ liệu và loại bỏ các ký tự cấm trong Key của Firebase (/ . # $ [ ])"""
     cleaned = {}
+    forbidden_chars = ["/", ".", "#", "$", "[", "]"]
     for k, v in d.items():
+        # Làm sạch Tên Cột (Key)
+        clean_k = str(k)
+        for char in forbidden_chars:
+            clean_k = clean_k.replace(char, "-")
+
+        # Làm sạch Giá trị (Value)
         if pd.isna(v) or v is None:
-            cleaned[k] = ""
+            cleaned[clean_k] = ""
         elif isinstance(v, (float, int)):
             if math.isnan(v) or math.isinf(v):
-                cleaned[k] = 0.0
+                cleaned[clean_k] = 0.0
             else:
-                cleaned[k] = v
+                cleaned[clean_k] = v
         else:
-            cleaned[k] = str(v)
+            cleaned[clean_k] = str(v)
     return cleaned
 
 def save_to_firebase(node_name, record_dict):
@@ -506,7 +513,7 @@ with tabs[0]:
                     "Họ Và Tên": str(fetched_name),
                     "Đối Tượng": user_role,
                     "Đơn Vị": str(fetched_unit),
-                    "Bộ Môn / Lớp": str(unit_sub_display),
+                    "Bộ Môn - Lớp": str(unit_sub_display), # Đã đổi dấu / thành dấu -
                     "Cơ Sở": campus_display_name,
                     "Thời Gian": now_vn.strftime("%Y-%m-%d %H:%M:%S"),
                     "Thao Tác": action_type,
