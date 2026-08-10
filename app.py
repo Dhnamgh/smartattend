@@ -129,15 +129,17 @@ def get_vietnam_now():
     return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=7)))
 
 def shorten_unit_name(name):
-    """Rút gọn tên Bộ môn / Đơn vị chuẩn hóa để hiển thị vừa vặn trên Biểu đồ"""
+    """Rút gọn tên Bộ môn / Đơn vị chuẩn hóa triệt để để hiển thị vừa vặn trên Biểu đồ"""
     if not name or pd.isna(name): return "Chưa xác định"
     s = str(name).strip()
+    
+    # Xử lý tất cả các biến thể của Tổ hành chính tổ chức
+    if "Hành chính tổ chức" in s or "Hành chính Tổ chức" in s or "HCTC" in s or "Văn phòng khoa" in s or "Văn phòng Khoa" in s:
+        return "Tổ HCTC-VPK"
+        
     s = s.replace("Bộ môn", "BM.").replace("Bộ Môn", "BM.")
     s = s.replace("Giáo dục thể chất", "GDTC").replace("Giáo Dục Thể Chất", "GDTC")
     s = s.replace("Lý luận chính trị", "LLCT").replace("Lý Luận Chính Trị", "LLCT")
-    s = s.replace("Tổ hành chính tổ chức - văn phòng khoa", "Tổ HCTC-VPK")
-    s = s.replace("Tổ Hành chính Tổ chức - Văn phòng Khoa", "Tổ HCTC-VPK")
-    s = s.replace("Tổ Hành chính Tổ chức - VP Khoa", "Tổ HCTC-VPK")
     return s
 
 # ================= 2. KẾT NỐI FIREBASE & MICROSOFT GRAPH =================
@@ -434,13 +436,12 @@ with tabs[0]:
 
     # --- KHUNG XỬ LÝ NÚT RA CA SỚM (XÁC NHẬN CÓ / KHÔNG) ---
     if st.session_state["early_leave_pending"]:
-        st.warning(f"⚠️ CẢNH BÁO: Bạn đang thực hiện Ra ca sớm **{st.session_state['early_leave_mins']} phút** so with quy định ca làm việc!")
+        st.warning(f"⚠️ CẢNH BÁO: Bạn đang thực hiện Ra ca sớm **{st.session_state['early_leave_mins']} phút** so với quy định ca làm việc!")
         st.write("Bạn có chắc chắn muốn xác nhận Ra ca sớm không?")
         
         c_confirm1, c_confirm2 = st.columns(2)
         with c_confirm1:
             if st.button("CÓ, XÁC NHẬN RA CA SỚM", key="btn_yes_early", use_container_width=True):
-                # Ghi nhận lên Firebase
                 node_map = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
                 target_node = node_map.get(user_role, "LichSu_GV")
                 
@@ -466,7 +467,6 @@ with tabs[0]:
                 }
                 save_to_firebase(target_node, record_data)
                 
-                # Báo thông báo rõ ràng như yêu cầu
                 st.success(f"✅ ĐÃ XÁC NHẬN RA CA SỚM THÀNH CÔNG! Ghi nhận cho {user_role} {fetched_name} ra ca sớm {early_mins} phút lúc {now_vn.strftime('%H:%M:%S')}.")
                 st.session_state["early_leave_pending"] = False
                 st.session_state["early_leave_mins"] = 0
@@ -518,7 +518,6 @@ with tabs[0]:
                     sched_start = now_vn.replace(hour=13, minute=0, second=0, microsecond=0)
                     sched_end_base = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
 
-            # Tính số phút vào trễ so với mốc bắt đầu
             late_minutes_raw = int((now_vn - sched_start).total_seconds() / 60)
             
             # LUẬT 5 PHÚT: Trễ <= 5 phút coi như ĐÚNG GIỜ, trễ > 5 phút tính TRỄ CHÍNH XÁC
@@ -527,7 +526,6 @@ with tabs[0]:
             else:
                 late_minutes_current = 0
 
-            # Kéo dài ca làm việc tương ứng cho Giảng viên & Viên chức khi đi trễ > 5 phút
             if user_role in ["Giảng viên", "Viên chức"]:
                 sched_end = sched_end_base + timedelta(minutes=late_minutes_current)
             else:
@@ -588,7 +586,6 @@ with tabs[0]:
                         st.error("Cảnh báo: Lượt Vào ca trước đó của bạn thuộc Ca Chiều, không thể Ra ca cho Ca Sáng!")
                         can_proceed = False
                     elif now_vn < sched_end:
-                        # Ra ca sớm -> Bật cờ hỏi xác nhận
                         st.session_state["early_leave_pending"] = True
                         st.session_state["early_leave_mins"] = int((sched_end - now_vn).total_seconds() / 60)
                         can_proceed = False
@@ -798,7 +795,7 @@ with tabs[2]:
             "Danh sách đơn minh chứng / nghỉ phép"
         ], index=0, horizontal=True, key="db_view_mode")
         
-        # --- CHỨC NĂNG 1: NHẬT KÝ CHI TIẾT & BIỂU ĐỒ (CÓ THỐNG KÊ CẢ VÀO CA & RA CA) ---
+        # --- CHỨC NĂNG 1: NHẬT KÝ CHI TIẾT & BIỂU ĐỒ ---
         if view_mode == "Nhật ký điểm danh chi tiết & Biểu đồ":
             selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
             node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
@@ -809,18 +806,24 @@ with tabs[2]:
             else:
                 unit_col = "Bộ Môn - Lớp" if "Bộ Môn - Lớp" in history_df.columns else ("Bộ Môn / Lớp" if "Bộ Môn / Lớp" in history_df.columns else ("Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]))
                 
-                # SỬA LỖI TÊN DÀI: Rút gọn tất cả tên Bộ môn/Đơn vị hiển thị trên Biểu đồ
+                # CHUẨN HÓA VIẾT TẮT TẤT CẢ TÊN BỘ MÔN / TỔ HCTC-VPK
                 history_df[unit_col] = history_df[unit_col].apply(shorten_unit_name)
 
                 available_units = ["Tất cả (Toàn Khoa / Toàn Trường)"] + sorted([str(u) for u in history_df[unit_col].dropna().unique() if str(u).strip() != ""])
-                selected_unit_filter = st.selectbox("📌 Lọc dữ liệu theo Bộ môn / Lớp / Đơn vị:", available_units, index=0, key="dashboard_unit_filter")
                 
+                c_f1, c_f2 = st.columns(2)
+                with c_f1:
+                    selected_unit_filter = st.selectbox("📌 Lọc dữ liệu theo Bộ môn / Lớp / Đơn vị:", available_units, index=0, key="dashboard_unit_filter")
+                with c_f2:
+                    # NÚT CHỌN MẶC ĐỊNH MỞ BÀI CHO BIỂU ĐỒ TRÒN (MẶC ĐỊNH LÀ VÀO CA)
+                    selected_action_pie = st.selectbox("⭕ Chọn góc nhìn Biểu đồ tròn theo Thao tác:", ["Vào ca (Check-in)", "Ra ca (Check-out)", "Tất cả Thao tác"], index=0, key="pie_action_filter")
+
                 if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)":
                     filtered_df = history_df[history_df[unit_col] == selected_unit_filter].copy()
                 else:
                     filtered_df = history_df.copy()
                 
-                # Thống kê phân loại đầy đủ Vào ca & Ra ca
+                # Metric thống kê
                 total_records = len(filtered_df)
                 checkin_count = len(filtered_df[filtered_df["Thao Tác"] == "Vào ca (Check-in)"]) if "Thao Tác" in filtered_df.columns else 0
                 checkout_count = len(filtered_df[filtered_df["Thao Tác"] == "Ra ca (Check-out)"]) if "Thao Tác" in filtered_df.columns else 0
@@ -842,9 +845,16 @@ with tabs[2]:
                 
                 with col_chart1:
                     chart_title_suffix = f" - {selected_unit_filter}" if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)" else " (Toàn Khoa)"
-                    st.markdown(f"**Biểu đồ Tỷ lệ Trạng thái Điểm danh{chart_title_suffix}**")
-                    if "Trạng Thái" in filtered_df.columns and not filtered_df.empty:
-                        status_counts = filtered_df["Trạng Thái"].value_counts().reset_index()
+                    st.markdown(f"**Biểu đồ Tỷ lệ Trạng thái [{selected_action_pie}]{chart_title_suffix}**")
+                    
+                    # Lọc dữ liệu riêng cho Biểu đồ tròn theo Thao tác được chọn
+                    if selected_action_pie != "Tất cả Thao tác":
+                        pie_df = filtered_df[filtered_df["Thao Tác"] == selected_action_pie].copy()
+                    else:
+                        pie_df = filtered_df.copy()
+
+                    if "Trạng Thái" in pie_df.columns and not pie_df.empty:
+                        status_counts = pie_df["Trạng Thái"].value_counts().reset_index()
                         status_counts.columns = ["Trạng Thái", "Số Lượng"]
                         fig_pie = px.pie(
                             status_counts, 
@@ -855,9 +865,11 @@ with tabs[2]:
                         )
                         fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
                         st.plotly_chart(fig_pie, use_container_width=True)
+                    else:
+                        st.info(f"Chưa có dữ liệu lượt [{selected_action_pie}] cho lựa chọn này.")
 
                 with col_chart2:
-                    st.markdown("**Biểu đồ Thống kê Lượt Vào ca & Ra ca theo Bộ môn / Lớp**")
+                    st.markdown("**Biểu đồ Thống kê Lượt Vào ca & Ra ca theo Bộ môn / Đơn vị**")
                     if not history_df.empty and "Thao Tác" in history_df.columns:
                         action_unit_counts = history_df.groupby([unit_col, "Thao Tác"]).size().reset_index(name="Số Lượt")
                         fig_bar = px.bar(
