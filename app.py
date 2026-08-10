@@ -16,6 +16,16 @@ st.set_page_config(page_title="HỆ THỐNG ĐIỂM DANH UMP", layout="wide")
 
 st.markdown("""
 <style>
+    /* Ẩn triệt để các nút quản trị Streamlit ở góc màn hình điện thoại & máy tính */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stAppDeployButton {display:none !important;}
+    [data-testid="stStatusWidget"] {display:none !important;}
+    div[class*="viewerBadge"] {display:none !important;}
+    div[class*="styles_viewerBadge"] {display:none !important;}
+    
+    /* Style cho giao diện app */
     div[data-baseweb="tab-list"] { gap: 6px; }
     button[data-baseweb="tab"] {
         background-color: #1877F2 !important;
