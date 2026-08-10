@@ -73,7 +73,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
-MAX_ALLOWED_RADIUS = 80.0 
+MAX_ALLOWED_RADIUS = 100.0 
 ALLOWED_IP_PREFIXES = ["103.180.97.", "118.69.1.", "203.162.1.", "171.244.1."]
 
 CAMPUSES = {
