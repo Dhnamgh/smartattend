@@ -132,10 +132,16 @@ def get_vietnam_now():
 @st.cache_resource
 def init_firebase():
     if not firebase_admin._apps:
-        fb_sec = dict(st.secrets["firebase"])
-        db_url = fb_sec.get("databaseURL")
-        cred = credentials.Certificate(fb_sec)
-        firebase_admin.initialize_app(cred, {'databaseURL': db_url})
+        try:
+            fb_sec = dict(st.secrets["firebase"])
+            if "private_key" in fb_sec:
+                fb_sec["private_key"] = fb_sec["private_key"].replace("\\n", "\n")
+            
+            db_url = fb_sec.get("databaseURL")
+            cred = credentials.Certificate(fb_sec)
+            firebase_admin.initialize_app(cred, {'databaseURL': db_url})
+        except Exception as e:
+            st.error(f"Lỗi kết nối cấu hình Firebase SDK: {str(e)}")
 
 init_firebase()
 
@@ -143,9 +149,9 @@ def save_to_firebase(node_name, record_dict):
     try:
         ref = db.reference(node_name)
         ref.push(record_dict)
-        return True
-    except Exception:
-        return False
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 def read_from_firebase(node_name):
     try:
@@ -157,7 +163,8 @@ def read_from_firebase(node_name):
             elif isinstance(data, list):
                 return pd.DataFrame([x for x in data if x is not None])
         return pd.DataFrame()
-    except Exception:
+    except Exception as e:
+        st.caption(f"Lỗi đọc dữ liệu từ Firebase ({node_name}): {str(e)}")
         return pd.DataFrame()
 
 def get_azure_token():
@@ -489,9 +496,11 @@ with tabs[0]:
                     "Ghi Chú": note
                 }
                 
-                success = save_to_firebase(target_node, record_data)
+                success, err_msg = save_to_firebase(target_node, record_data)
                 if success:
                     st.success(f"Ghi nhận thành công cho {user_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
+                else:
+                    st.error(f"Lỗi kết nối Firebase: {err_msg}")
 
 # ----------------- TAB 2: BÁO NGHỈ PHÉP -----------------
 with tabs[1]:
@@ -612,12 +621,12 @@ with tabs[1]:
                     "Trạng Thái Duyệt": "Chờ duyệt"
                 }
                 
-                saved_mc = save_to_firebase("MinhChung_NghiPhep", mc_record)
+                saved_mc, err_mc = save_to_firebase("MinhChung_NghiPhep", mc_record)
                 
                 if saved_mc:
                     st.success(f"Yêu cầu xin nghỉ / minh chứng của {mc_user_role} {mc_fetched_name} ({mc_id}) đã được ghi nhận thành công!")
                 else:
-                    st.error("Lỗi khi gửi dữ liệu lên Firebase!")
+                    st.error(f"Lỗi gửi đơn lên Firebase: {err_mc}")
 
 # ----------------- TAB 3: DASHBOARD -----------------
 with tabs[2]:
