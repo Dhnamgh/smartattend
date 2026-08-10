@@ -8,6 +8,8 @@ import requests
 import msal
 import plotly.express as px
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
+import firebase_admin
+from firebase_admin import credentials, db
 
 # ================= 1. CẤU HÌNH GIAO DIỆN & STYLE =================
 st.set_page_config(page_title="HỆ THỐNG ĐIỂM DANH UMP", layout="wide")
@@ -126,7 +128,38 @@ LESSON_TIMES_PRACTICE = {
 def get_vietnam_now():
     return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=7)))
 
-# ================= 2. HÀM KẾT NỐI MICROSOFT GRAPH API =================
+# ================= 2. KẾT NỐI FIREBASE & MICROSOFT GRAPH =================
+@st.cache_resource
+def init_firebase():
+    if not firebase_admin._apps:
+        fb_sec = dict(st.secrets["firebase"])
+        db_url = fb_sec.get("databaseURL")
+        cred = credentials.Certificate(fb_sec)
+        firebase_admin.initialize_app(cred, {'databaseURL': db_url})
+
+init_firebase()
+
+def save_to_firebase(node_name, record_dict):
+    try:
+        ref = db.reference(node_name)
+        ref.push(record_dict)
+        return True
+    except Exception:
+        return False
+
+def read_from_firebase(node_name):
+    try:
+        ref = db.reference(node_name)
+        data = ref.get()
+        if data:
+            if isinstance(data, dict):
+                return pd.DataFrame(list(data.values()))
+            elif isinstance(data, list):
+                return pd.DataFrame([x for x in data if x is not None])
+        return pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
 def get_azure_token():
     try:
         azure_sec = st.secrets["azure"]
@@ -167,43 +200,6 @@ def read_excel_from_onedrive(file_path, sheet_name=None):
     except Exception:
         return pd.DataFrame()
 
-def append_row_to_onedrive_excel(file_path, row_values, custom_cols=None):
-    token = get_azure_token()
-    if not token: return False
-    try:
-        base_url = build_graph_url(file_path)
-        content_url = f"{base_url}/content"
-        get_res = requests.get(content_url, headers={"Authorization": f"Bearer {token}"})
-        
-        default_cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Bộ Môn / Lớp", "Cơ Sở", "Thời Gian", "Thao Tác", "Khoảng Cách (m)", "Địa Chỉ IP", "Trạng Thái", "Ghi Chú"]
-        cols = custom_cols if custom_cols else default_cols
-        
-        if get_res.status_code == 200:
-            try:
-                df_existing = pd.read_excel(io.BytesIO(get_res.content), dtype=str, engine="openpyxl").dropna(how='all')
-            except Exception:
-                df_existing = pd.DataFrame(columns=cols)
-        else:
-            df_existing = pd.DataFrame(columns=cols)
-        
-        new_row_df = pd.DataFrame([row_values], columns=cols[:len(row_values)])
-        df_updated = pd.concat([df_existing, new_row_df], ignore_index=True)
-        
-        output_buffer = io.BytesIO()
-        with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
-            df_updated.to_excel(writer, index=False, sheet_name='Sheet1')
-        output_buffer.seek(0)
-        
-        headers_put = {"Authorization": f"Bearer {token}", "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
-        for attempt in range(3):
-            put_res = requests.put(content_url, headers=headers_put, data=output_buffer.getvalue())
-            if put_res.status_code in [200, 201]: return True
-            elif put_res.status_code == 423: time.sleep(1.5 * (attempt + 1))
-            else: return False
-        return False
-    except Exception:
-        return False
-
 def upload_file_to_onedrive(folder_path, file_name, file_bytes):
     token = get_azure_token()
     if not token: return False
@@ -240,7 +236,6 @@ with tabs[0]:
     with col1:
         user_role = st.radio("Chọn đối tượng:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True)
         
-        # Xác định độ dài mã số theo từng đối tượng
         expected_len = 9 if user_role == "Sinh viên" else 8
         id_placeholder = "Ví dụ: 060712345" if user_role == "Sinh viên" else "Ví dụ: 06071234"
         
@@ -397,14 +392,14 @@ with tabs[0]:
         elif len(input_id) != expected_len or not fetched_name:
             st.error(f"Mã số {expected_len} chữ số không tồn tại trong danh sách dữ liệu trên OneDrive!")
         else:
-            file_map = {
-                "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
-                "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
-                "Sinh viên": "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
+            node_map = {
+                "Giảng viên": "LichSu_GV",
+                "Viên chức": "LichSu_VC",
+                "Sinh viên": "LichSu_SV"
             }
-            target_excel_path = file_map.get(user_role, "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx")
+            target_node = node_map.get(user_role, "LichSu_GV")
             
-            existing_df = read_excel_from_onedrive(target_excel_path)
+            existing_df = read_from_firebase(target_node)
             last_action, last_time_str, last_note = None, "", ""
             
             if not existing_df.empty and "Mã Số" in existing_df.columns:
@@ -479,13 +474,22 @@ with tabs[0]:
                     else:
                         note = f"[{vc_shift}] Hoàn thành ca làm việc"
 
-                row_data = [
-                    input_id, str(fetched_name), user_role, str(fetched_unit), str(unit_sub_display),
-                    campus_display_name, now_vn.strftime("%Y-%m-%d %H:%M:%S"), action_type,
-                    round(curr_dist, 1), user_ip if user_ip else "N/A", status, note
-                ]
+                record_data = {
+                    "Mã Số": input_id,
+                    "Họ Và Tên": str(fetched_name),
+                    "Đối Tượng": user_role,
+                    "Đơn Vị": str(fetched_unit),
+                    "Bộ Môn / Lớp": str(unit_sub_display),
+                    "Cơ Sở": campus_display_name,
+                    "Thời Gian": now_vn.strftime("%Y-%m-%d %H:%M:%S"),
+                    "Thao Tác": action_type,
+                    "Khoảng Cách (m)": round(curr_dist, 1),
+                    "Địa Chỉ IP": user_ip if user_ip else "N/A",
+                    "Trạng Thái": status,
+                    "Ghi Chú": note
+                }
                 
-                success = append_row_to_onedrive_excel(target_excel_path, row_data)
+                success = save_to_firebase(target_node, record_data)
                 if success:
                     st.success(f"Ghi nhận thành công cho {user_role} {fetched_name} tại {detected_campus_info['name']} lúc {now_vn.strftime('%H:%M:%S')}. Trạng thái: {status}")
 
@@ -543,15 +547,11 @@ with tabs[1]:
     is_afternoon_attended = False
 
     if len(mc_id) == mc_expected_len and mc_fetched_name:
-        check_paths = [
-            "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
-            "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
-            "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
-        ]
+        check_nodes = ["LichSu_GV", "LichSu_VC", "LichSu_SV"]
         today_str = now_vn.strftime("%Y-%m-%d")
         
-        for path in check_paths:
-            hist_df = read_excel_from_onedrive(path)
+        for node in check_nodes:
+            hist_df = read_from_firebase(node)
             if not hist_df.empty and "Mã Số" in hist_df.columns and "Thời Gian" in hist_df.columns:
                 hist_df["CLEAN_ID"] = hist_df["Mã Số"].astype(str).str.strip().str.zfill(mc_expected_len)
                 hist_df["DATE_STR"] = hist_df["Thời Gian"].astype(str).str[:10]
@@ -600,18 +600,24 @@ with tabs[1]:
                         mc_file.getvalue()
                     )
 
-                mc_cols = ["Mã Số", "Họ Và Tên", "Đối Tượng", "Đơn Vị", "Loại Yêu Cầu", "Lý Do", "File Minh Chứng", "Thời Gian Gửi", "Trạng Thái Duyệt"]
-                mc_row = [
-                    mc_id, str(mc_fetched_name), mc_user_role, str(mc_fetched_unit),
-                    mc_type, mc_reason, file_saved_name, now_vn.strftime("%Y-%m-%d %H:%M:%S"), "Chờ duyệt"
-                ]
+                mc_record = {
+                    "Mã Số": mc_id,
+                    "Họ Và Tên": str(mc_fetched_name),
+                    "Đối Tượng": mc_user_role,
+                    "Đơn Vị": str(mc_fetched_unit),
+                    "Loại Yêu Cầu": mc_type,
+                    "Lý Do": mc_reason,
+                    "File Minh Chứng": file_saved_name,
+                    "Thời Gian Gửi": now_vn.strftime("%Y-%m-%d %H:%M:%S"),
+                    "Trạng Thái Duyệt": "Chờ duyệt"
+                }
                 
-                saved_mc = append_row_to_onedrive_excel("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx", mc_row, custom_cols=mc_cols)
+                saved_mc = save_to_firebase("MinhChung_NghiPhep", mc_record)
                 
                 if saved_mc:
                     st.success(f"Yêu cầu xin nghỉ / minh chứng của {mc_user_role} {mc_fetched_name} ({mc_id}) đã được ghi nhận thành công!")
                 else:
-                    st.error("Lỗi khi gửi dữ liệu lên OneDrive!")
+                    st.error("Lỗi khi gửi dữ liệu lên Firebase!")
 
 # ----------------- TAB 3: DASHBOARD -----------------
 with tabs[2]:
@@ -620,20 +626,20 @@ with tabs[2]:
     if view_mode == "Nhật ký điểm danh":
         selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
         
-        file_map_report = {
-            "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
-            "Viên chức": "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
-            "Sinh viên": "OGSM/ATTENDANCE/DATA/LichSu_SV.xlsx"
+        node_map_report = {
+            "Giảng viên": "LichSu_GV",
+            "Viên chức": "LichSu_VC",
+            "Sinh viên": "LichSu_SV"
         }
-        report_file_path = file_map_report[selected_report_role]
+        report_node = node_map_report[selected_report_role]
         
-        history_df = read_excel_from_onedrive(report_file_path)
+        history_df = read_from_firebase(report_node)
         
         if history_df.empty:
-            st.info(f"Chưa có dữ liệu điểm danh trên OneDrive cho nhóm **{selected_report_role}**.")
+            st.info(f"Chưa có dữ liệu điểm danh trên Firebase cho nhóm **{selected_report_role}**.")
         else:
             total_records = len(history_df)
-            on_time_count = len(history_df[history_df["Trạng Thái"] == "Đúng giờ"])
+            on_time_count = len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]) if "Trạng Thái" in history_df.columns else 0
             late_count = total_records - on_time_count
             
             c1, c2, c3 = st.columns(3)
@@ -647,17 +653,18 @@ with tabs[2]:
             
             with col_chart1:
                 st.markdown("**Biểu đồ Tỷ lệ Trạng thái Điểm danh**")
-                status_counts = history_df["Trạng Thái"].value_counts().reset_index()
-                status_counts.columns = ["Trạng Thái", "Số Lượng"]
-                fig_pie = px.pie(
-                    status_counts, 
-                    values="Số Lượng", 
-                    names="Trạng Thái", 
-                    hole=0.4,
-                    color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900"]
-                )
-                fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig_pie, use_container_width=True)
+                if "Trạng Thái" in history_df.columns:
+                    status_counts = history_df["Trạng Thái"].value_counts().reset_index()
+                    status_counts.columns = ["Trạng Thái", "Số Lượng"]
+                    fig_pie = px.pie(
+                        status_counts, 
+                        values="Số Lượng", 
+                        names="Trạng Thái", 
+                        hole=0.4,
+                        color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900"]
+                    )
+                    fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
+                    st.plotly_chart(fig_pie, use_container_width=True)
 
             with col_chart2:
                 st.markdown("**Biểu đồ Số lượt Điểm danh theo Đơn vị / Lớp**")
@@ -689,7 +696,7 @@ with tabs[2]:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
     else:
-        mc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/MinhChung_NghiPhep.xlsx")
+        mc_df = read_from_firebase("MinhChung_NghiPhep")
         if mc_df.empty:
             st.info("Chưa có đơn xin nghỉ phép / minh chứng nào được gửi lên hệ thống.")
         else:
@@ -698,17 +705,19 @@ with tabs[2]:
             col_mc_chart1, col_mc_chart2 = st.columns(2)
             with col_mc_chart1:
                 st.markdown("**Phân loại Đơn theo Đối tượng**")
-                role_mc_counts = mc_df["Đối Tượng"].value_counts().reset_index()
-                role_mc_counts.columns = ["Đối Tượng", "Số Lượng"]
-                fig_mc_role = px.pie(role_mc_counts, values="Số Lượng", names="Đối Tượng", hole=0.3)
-                st.plotly_chart(fig_mc_role, use_container_width=True)
+                if "Đối Tượng" in mc_df.columns:
+                    role_mc_counts = mc_df["Đối Tượng"].value_counts().reset_index()
+                    role_mc_counts.columns = ["Đối Tượng", "Số Lượng"]
+                    fig_mc_role = px.pie(role_mc_counts, values="Số Lượng", names="Đối Tượng", hole=0.3)
+                    st.plotly_chart(fig_mc_role, use_container_width=True)
                 
             with col_mc_chart2:
                 st.markdown("**Phân loại theo Loại Yêu cầu**")
-                type_mc_counts = mc_df["Loại Yêu Cầu"].value_counts().reset_index()
-                type_mc_counts.columns = ["Loại Yêu Cầu", "Số Lượng"]
-                fig_mc_type = px.bar(type_mc_counts, x="Loại Yêu Cầu", y="Số Lượng", color="Loại Yêu Cầu", text_auto=True)
-                st.plotly_chart(fig_mc_type, use_container_width=True)
+                if "Loại Yêu Cầu" in mc_df.columns:
+                    type_mc_counts = mc_df["Loại Yêu Cầu"].value_counts().reset_index()
+                    type_mc_counts.columns = ["Loại Yêu Cầu", "Số Lượng"]
+                    fig_mc_type = px.bar(type_mc_counts, x="Loại Yêu Cầu", y="Số Lượng", color="Loại Yêu Cầu", text_auto=True)
+                    st.plotly_chart(fig_mc_type, use_container_width=True)
 
             st.dataframe(mc_df, use_container_width=True)
             
