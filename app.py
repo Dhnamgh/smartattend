@@ -443,7 +443,6 @@ with tabs[0]:
 
             can_proceed = True
             
-            # --- TÍNH TOÁN LỊCH CA HỌC/LÀM VIỆC CHUẨN ---
             if user_role in ["Giảng viên", "Sinh viên"]:
                 s_h, s_m = lesson_schedule[start_lesson]["start"]
                 e_h, e_m = lesson_schedule[end_lesson]["end"]
@@ -457,16 +456,14 @@ with tabs[0]:
                     sched_start = now_vn.replace(hour=13, minute=0, second=0, microsecond=0)
                     sched_end_base = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
 
-            # Tính số phút vào trễ hiện tại
             late_minutes_current = max(0, int((now_vn - sched_start).total_seconds() / 60)) if now_vn > sched_start else 0
 
-            # Xử lý bù giờ: Giảng viên & Viên chức phải bù giờ, Sinh viên KHÔNG bù giờ
             if user_role in ["Giảng viên", "Viên chức"]:
                 sched_end = sched_end_base + timedelta(minutes=late_minutes_current)
             else:
                 sched_end = sched_end_base
 
-            # ================= TỰ ĐỘNG ĐÓNG CA NẾU QUÊN CHECK-OUT (ĐÁNH NHÃN VI PHẠM) =================
+            # ================= TỰ ĐỘNG ĐÓNG CA NẾU QUÊN CHECK-OUT =================
             if action_type == "Vào ca (Check-in)" and last_action == "Vào ca (Check-in)":
                 try:
                     last_time_dt = datetime.strptime(last_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=7)))
@@ -541,13 +538,13 @@ with tabs[0]:
                             status = "Vào trễ"
                             if user_role == "Giảng viên":
                                 note = f"[{study_type}] Đi trễ {late_minutes_current} phút (Phải bù giờ đến {sched_end.strftime('%H:%M')}). Điểm danh lúc {now_vn.strftime('%H:%M')}."
-                            else: # Sinh viên
+                            else:
                                 note = f"[{study_type}] Đi trễ {late_minutes_current} phút (Ghi nhận chấm điểm rèn luyện). Điểm danh lúc {now_vn.strftime('%H:%M')}."
                         else:
                             note = f"[{study_type}] Lịch Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end_base.strftime('%H:%M')})"
                     else:
                         note = f"[{study_type}] Hoàn thành ca Tiết {start_lesson}-{end_lesson}"
-                else: # Viên chức
+                else:
                     if action_type == "Vào ca (Check-in)":
                         if late_minutes_current > 15:
                             status = "Đi trễ (Có bù giờ)"
@@ -705,11 +702,10 @@ with tabs[1]:
                 else:
                     st.error(f"Lỗi gửi đơn lên Firebase: {err_mc}")
 
-# ----------------- TAB 3: DASHBOARD (BẢO BẬC MẬT KHẨU QUẢN TRỊ) -----------------
+# ----------------- TAB 3: DASHBOARD -----------------
 with tabs[2]:
     st.subheader("🔒 BÁO CÁO & THỐNG KÊ QUẢN TRỊ")
     
-    # Lấy Mật khẩu Admin từ Secrets (Mặc định: "123456" nếu chưa cài trong Secrets)
     admin_pass = st.secrets.get("admin_password", "123456")
     input_pass = st.text_input("Nhập mật khẩu Quản trị viên để truy cập:", type="password", key="db_pass_input")
     
@@ -717,21 +713,25 @@ with tabs[2]:
         if input_pass:
             st.error("Mật khẩu không chính xác! Vui lòng liên hệ Ban quản trị.")
         else:
-            st.info("Vui lòng nhập mật khẩu Quản trị viên để xem báo cáo và xuất file Excel.")
+            st.info("Vui lòng nhập mật khẩu Quản trị viên để xem biểu đồ, báo cáo và xuất file Excel.")
     else:
         st.success("Đã xác thực quyền Quản trị viên!")
         st.markdown("---")
         
-        view_mode = st.radio("Chọn loại báo cáo:", ["Báo cáo Tổng hợp Thi đua / Đèn Rèn luyện (Theo Tháng)", "Nhật ký điểm danh chi tiết", "Danh sách đơn minh chứng / nghỉ phép"], horizontal=True, key="db_view_mode")
+        view_mode = st.radio("Chọn loại báo cáo:", [
+            "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)", 
+            "Nhật ký điểm danh chi tiết & Biểu đồ", 
+            "Danh sách đơn minh chứng / nghỉ phép"
+        ], horizontal=True, key="db_view_mode")
         
-        if view_mode == "Báo cáo Tổng hợp Thi đua / Đèn Rèn luyện (Theo Tháng)":
+        if view_mode == "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)":
             selected_report_role = st.selectbox("Chọn đối tượng:", ["Giảng viên", "Viên chức", "Sinh viên"], key="stat_role_select")
             
             node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
             history_df = read_from_firebase(node_map_report[selected_report_role])
             
             if history_df.empty:
-                st.info("Chưa có dữ liệu điểm danh.")
+                st.info("Chưa có dữ liệu điểm danh trên Firebase.")
             else:
                 history_df["THỜI GIAN DT"] = pd.to_datetime(history_df["Thời Gian"], errors='coerce')
                 history_df["THÁNG_NĂM"] = history_df["THỜI GIAN DT"].dt.strftime("%m/%Y")
@@ -748,13 +748,12 @@ with tabs[2]:
                         df_month["Số Phút Trễ"] = 0
                     df_month["Số Phút Trễ"] = pd.to_numeric(df_month["Số Phút Trễ"], errors='coerce').fillna(0)
 
-                    # Gom nhóm thống kê theo từng cá nhân
                     summary_list = []
                     grouped = df_month.groupby("Mã Số")
                     for ms, group in grouped:
                         name = group["Họ Và Tên"].iloc[0] if "Họ Và Tên" in group.columns else ""
                         unit = group["Đơn Vị"].iloc[0] if "Đơn Vị" in group.columns else ""
-                        sub_class = group["Bộ Môn - Lớp"].iloc[0] if "Bộ Môn - Lớp" in group.columns else ""
+                        sub_class = group["Bộ Môn - Lớp"].iloc[0] if "Bộ Môn - Lớp" in group.columns else (group["Bộ Môn / Lớp"].iloc[0] if "Bộ Môn / Lớp" in group.columns else "")
                         
                         total_att = len(group)
                         on_time = len(group[group["Trạng Thái"] == "Đúng giờ"])
@@ -791,7 +790,7 @@ with tabs[2]:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
-        elif view_mode == "Nhật ký điểm danh chi tiết":
+        elif view_mode == "Nhật ký điểm danh chi tiết & Biểu đồ":
             selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
             node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
             history_df = read_from_firebase(node_map_report[selected_report_role])
@@ -799,6 +798,51 @@ with tabs[2]:
             if history_df.empty:
                 st.info(f"Chưa có dữ liệu điểm danh trên Firebase cho nhóm **{selected_report_role}**.")
             else:
+                total_records = len(history_df)
+                on_time_count = len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]) if "Trạng Thái" in history_df.columns else 0
+                late_count = total_records - on_time_count
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", total_records)
+                c2.metric("Lượt Đúng giờ", on_time_count)
+                c3.metric("Lượt Trễ / Về sớm / Vi phạm", late_count)
+                
+                st.markdown("---")
+                
+                # KHÔI PHỤC BỘ BIỂU ĐỒ TRỰC QUAN
+                col_chart1, col_chart2 = st.columns(2)
+                
+                with col_chart1:
+                    st.markdown("**Biểu đồ Tỷ lệ Trạng thái Điểm danh**")
+                    if "Trạng Thái" in history_df.columns:
+                        status_counts = history_df["Trạng Thái"].value_counts().reset_index()
+                        status_counts.columns = ["Trạng Thái", "Số Lượng"]
+                        fig_pie = px.pie(
+                            status_counts, 
+                            values="Số Lượng", 
+                            names="Trạng Thái", 
+                            hole=0.4,
+                            color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900", "#6c757d"]
+                        )
+                        fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
+                        st.plotly_chart(fig_pie, use_container_width=True)
+
+                with col_chart2:
+                    st.markdown("**Biểu đồ Số lượt Điểm danh theo Đơn vị / Lớp**")
+                    unit_col = "Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]
+                    unit_counts = history_df[unit_col].value_counts().reset_index()
+                    unit_counts.columns = [unit_col, "Số Lượt"]
+                    fig_bar = px.bar(
+                        unit_counts, 
+                        x=unit_col, 
+                        y="Số Lượt", 
+                        color=unit_col,
+                        text_auto=True,
+                        color_discrete_sequence=px.colors.qualitative.Set2
+                    )
+                    fig_bar.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+                    st.plotly_chart(fig_bar, use_container_width=True)
+
                 st.markdown("**Bảng Nhật ký Chi tiết:**")
                 st.dataframe(history_df, use_container_width=True)
                 
@@ -818,6 +862,25 @@ with tabs[2]:
             if mc_df.empty:
                 st.info("Chưa có đơn xin nghỉ phép / minh chứng nào được gửi lên hệ thống.")
             else:
+                st.metric("Tổng số đơn đã gửi", len(mc_df))
+                
+                col_mc_chart1, col_mc_chart2 = st.columns(2)
+                with col_mc_chart1:
+                    st.markdown("**Phân loại Đơn theo Đối tượng**")
+                    if "Đối Tượng" in mc_df.columns:
+                        role_mc_counts = mc_df["Đối Tượng"].value_counts().reset_index()
+                        role_mc_counts.columns = ["Đối Tượng", "Số Lượng"]
+                        fig_mc_role = px.pie(role_mc_counts, values="Số Lượng", names="Đối Tượng", hole=0.3)
+                        st.plotly_chart(fig_mc_role, use_container_width=True)
+                    
+                with col_mc_chart2:
+                    st.markdown("**Phân loại theo Loại Yêu cầu**")
+                    if "Loại Yêu Cầu" in mc_df.columns:
+                        type_mc_counts = mc_df["Loại Yêu Cầu"].value_counts().reset_index()
+                        type_mc_counts.columns = ["Loại Yêu Cầu", "Số Lượng"]
+                        fig_mc_type = px.bar(type_mc_counts, x="Loại Yêu Cầu", y="Số Lượng", color="Loại Yêu Cầu", text_auto=True)
+                        st.plotly_chart(fig_mc_type, use_container_width=True)
+
                 st.dataframe(mc_df, use_container_width=True)
                 
                 buffer = io.BytesIO()
