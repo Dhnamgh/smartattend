@@ -77,7 +77,7 @@ MAX_ALLOWED_RADIUS = 145.0
 ALLOWED_IP_PREFIXES = ["103.180.97.", "118.69.1.", "203.162.1.", "171.244.1."]
 
 CAMPUSES = {
-    "CS1": {"name": "Cơ sở 1", "address": "217 Hồng Bàng, P. Chợ Lớn , TP.HCM", "lat": 10.754535, "lng": 106.6663334},
+    "CS1": {"name": "Cơ sở 1", "address": "217 Hồng Bàng, P. Chợ Lớn , TP.HCM", "lat": 10.754535, "lng": 106.663334},
     "CS2": {"name": "Cơ sở 2", "address": "201 Nguyễn Chí Thanh, P. Chợ Lớn, TP.HCM", "lat": 10.757973, "lng": 106.663351},
     "CS3": {"name": "Cơ sở 3", "address": "41 Đinh Tiên Hoàng, P.Sài Gòn, TP.HCM", "lat": 10.785324, "lng": 106.702328}
 }
