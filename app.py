@@ -459,7 +459,7 @@ with tabs[0]:
                     sched_start = now_vn.replace(hour=13, minute=0, second=0, microsecond=0)
                     sched_end = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
 
-            # ================= TỰ ĐỘNG RA CA NẾU QUÊN CHECK-OUT CA TRƯỚC =================
+            # ================= TỰ ĐỘNG ĐÓNG CA NẾU QUÊN CHECK-OUT (CÓ GẮN NHÃN VI PHẠM) =================
             if action_type == "Vào ca (Check-in)" and last_action == "Vào ca (Check-in)":
                 try:
                     last_time_dt = datetime.strptime(last_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=7)))
@@ -467,44 +467,34 @@ with tabs[0]:
                     is_previous_shift = (last_time_dt.hour < 12 and now_vn.hour >= 12) or (last_time_dt.date() < now_vn.date())
                     
                     if is_previous_shift:
-                        # Xác định mốc bắt đầu chuẩn & mốc kết thúc chuẩn theo lịch có nghỉ giải lao
+                        # Xác định mốc kết thúc ca cũ
                         if "Thực hành" in last_note:
-                            base_start_h, base_start_m = 7 if last_time_dt.hour < 12 else 13, 30
                             base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 40
                         elif "Lý thuyết" in last_note:
-                            base_start_h, base_start_m = 7 if last_time_dt.hour < 12 else 13, 0
                             base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 20
                         else: # Viên chức
-                            base_start_h, base_start_m = 7 if last_time_dt.hour < 12 else 13, 0
                             base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 0
 
-                        base_start_dt = last_time_dt.replace(hour=base_start_h, minute=base_start_m, second=0, microsecond=0)
-                        base_end_dt = last_time_dt.replace(hour=base_end_h, minute=base_end_m, second=0, microsecond=0)
-                        
-                        # Tính số phút vào trễ so với giờ bắt đầu ca chuẩn
-                        late_minutes = max(0, int((last_time_dt - base_start_dt).total_seconds() / 60)) if last_time_dt > base_start_dt else 0
-                        
-                        # Thời gian tự động Ra ca = Giờ kết thúc ca chuẩn + Số phút bù trễ
-                        auto_checkout_dt = base_end_dt + timedelta(minutes=late_minutes)
-                        
+                        auto_checkout_dt = last_time_dt.replace(hour=base_end_h, minute=base_end_m, second=0, microsecond=0)
                         unit_sub_disp = f"{fetched_sub} ({selected_class})" if user_role == "Sinh viên" else fetched_sub
 
+                        # Ghi nhận bản ghi Ra ca TỰ ĐỘNG nhưng đánh dấu VI PHẠM
                         auto_checkout_record = {
                             "Mã Số": input_id,
                             "Họ Và Tên": str(fetched_name),
                             "Đối Tượng": user_role,
                             "Đơn Vị": str(fetched_unit),
                             "Bộ Môn - Lớp": str(unit_sub_disp),
-                            "Cơ Sở": campus_display_name,
+                            "Cơ Sở": "Không xác định (Tự động)",
                             "Thời Gian": auto_checkout_dt.strftime("%Y-%m-%d %H:%M:%S"),
                             "Thao Tác": "Ra ca (Check-out)",
-                            "Khoảng Cách (m)": round(curr_dist, 1),
-                            "Địa Chỉ IP": user_ip if user_ip else "N/A",
-                            "Trạng Thái": "Tự động Ra ca",
-                            "Ghi Chú": f"Hệ thống tự động Ra ca do quên Check-out ca trước (Đã tính giờ giải lao & bù trễ {late_minutes} phút)"
+                            "Khoảng Cách (m)": 0.0,
+                            "Địa Chỉ IP": "N/A (Tự động)",
+                            "Trạng Thái": "Chưa Ra ca (Tự động đóng)", # ĐÁNH DẤU VI PHẠM RÕ RÀNG
+                            "Ghi Chú": "Vi phạm quy định: Không thực hiện Ra ca tại trường. Hệ thống tự động đóng ca."
                         }
                         save_to_firebase(target_node, auto_checkout_record)
-                        st.info(f"Hệ thống đã tự động ghi nhận 'Ra ca' cho ca trước của bạn vào lúc `{auto_checkout_dt.strftime('%Y-%m-%d %H:%M:%S')}`.")
+                        st.warning(f"Cảnh báo: Bạn đã không thực hiện 'Ra ca' cho ca trước! Hệ thống đã ghi nhận trạng thái 'Chưa Ra ca (Tự động đóng)' để giải phóng ca mới.")
                         
                         last_action = "Ra ca (Check-out)"
                 except Exception:
