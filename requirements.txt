@@ -5,3 +5,4 @@ requests
 msal
 plotly
 streamlit-js-eval
+firebase-admin
