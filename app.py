@@ -718,13 +718,98 @@ with tabs[2]:
         st.success("Đã xác thực quyền Quản trị viên!")
         st.markdown("---")
         
+        # MẶC ĐỊNH CHỌN "Nhật ký điểm danh chi tiết & Biểu đồ" LÀM CHỨC NĂNG ĐẦU TIÊN
         view_mode = st.radio("Chọn loại báo cáo:", [
-            "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)", 
             "Nhật ký điểm danh chi tiết & Biểu đồ", 
+            "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)", 
             "Danh sách đơn minh chứng / nghỉ phép"
-        ], horizontal=True, key="db_view_mode")
+        ], index=0, horizontal=True, key="db_view_mode")
         
-        if view_mode == "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)":
+        # --- CHỨC NĂNG 1: NHẬT KÝ CHI TIẾT & BIỂU ĐỒ (MẶC ĐỊNH) ---
+        if view_mode == "Nhật ký điểm danh chi tiết & Biểu đồ":
+            selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
+            node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
+            history_df = read_from_firebase(node_map_report[selected_report_role])
+            
+            if history_df.empty:
+                st.info(f"Chưa có dữ liệu điểm danh trên Firebase cho nhóm **{selected_report_role}**.")
+            else:
+                unit_col = "Bộ Môn - Lớp" if "Bộ Môn - Lớp" in history_df.columns else ("Bộ Môn / Lớp" if "Bộ Môn / Lớp" in history_df.columns else ("Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]))
+                
+                # Tùy chọn lọc theo Bộ môn / Lớp / Đơn vị (Mặc định: Tất cả)
+                available_units = ["Tất cả (Toàn Khoa / Toàn Trường)"] + sorted([str(u) for u in history_df[unit_col].dropna().unique() if str(u).strip() != ""])
+                selected_unit_filter = st.selectbox("📌 Lọc dữ liệu theo Bộ môn / Lớp / Đơn vị:", available_units, index=0, key="dashboard_unit_filter")
+                
+                # Cắt lọc dữ liệu theo Bộ môn đã chọn
+                if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)":
+                    filtered_df = history_df[history_df[unit_col] == selected_unit_filter].copy()
+                else:
+                    filtered_df = history_df.copy()
+                
+                # Cập nhật số liệu Metrix theo lọc
+                total_records = len(filtered_df)
+                on_time_count = len(filtered_df[filtered_df["Trạng Thái"] == "Đúng giờ"]) if "Trạng Thái" in filtered_df.columns else 0
+                late_count = total_records - on_time_count
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric(f"Tổng lượt điểm danh ({selected_unit_filter if selected_unit_filter != 'Tất cả (Toàn Khoa / Toàn Trường)' else 'Toàn Khoa'})", total_records)
+                c2.metric("Lượt Đúng giờ", on_time_count)
+                c3.metric("Lượt Trễ / Về sớm / Vi phạm", late_count)
+                
+                st.markdown("---")
+                
+                col_chart1, col_chart2 = st.columns(2)
+                
+                with col_chart1:
+                    chart_title_suffix = f" - {selected_unit_filter}" if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)" else " (Toàn Khoa)"
+                    st.markdown(f"**Biểu đồ Tỷ lệ Trạng thái Điểm danh{chart_title_suffix}**")
+                    if "Trạng Thái" in filtered_df.columns and not filtered_df.empty:
+                        status_counts = filtered_df["Trạng Thái"].value_counts().reset_index()
+                        status_counts.columns = ["Trạng Thái", "Số Lượng"]
+                        fig_pie = px.pie(
+                            status_counts, 
+                            values="Số Lượng", 
+                            names="Trạng Thái", 
+                            hole=0.4,
+                            color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900", "#6c757d"]
+                        )
+                        fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
+                        st.plotly_chart(fig_pie, use_container_width=True)
+                    else:
+                        st.info("Không có dữ liệu cho lựa chọn này.")
+
+                with col_chart2:
+                    st.markdown("**Biểu đồ Số lượt Điểm danh theo Bộ môn / Đơn vị / Lớp**")
+                    if not history_df.empty:
+                        unit_counts = history_df[unit_col].value_counts().reset_index()
+                        unit_counts.columns = [unit_col, "Số Lượt"]
+                        fig_bar = px.bar(
+                            unit_counts, 
+                            x=unit_col, 
+                            y="Số Lượt", 
+                            color=unit_col,
+                            text_auto=True,
+                            color_discrete_sequence=px.colors.qualitative.Set2
+                        )
+                        fig_bar.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+                        st.plotly_chart(fig_bar, use_container_width=True)
+
+                st.markdown(f"**Bảng Nhật ký Chi tiết ({selected_unit_filter}):**")
+                st.dataframe(filtered_df, use_container_width=True)
+                
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    filtered_df.to_excel(writer, sheet_name='Sheet1', index=False)
+                    
+                st.download_button(
+                    label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
+                    data=buffer.getvalue(),
+                    file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+        # --- CHỨC NĂNG 2: BÁO CÁO THI ĐUẢ THEO THÁNG ---
+        elif view_mode == "Báo cáo Thống kê Thi đua / Đèn Rèn luyện (Theo Tháng)":
             selected_report_role = st.selectbox("Chọn đối tượng:", ["Giảng viên", "Viên chức", "Sinh viên"], key="stat_role_select")
             
             node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
@@ -790,73 +875,7 @@ with tabs[2]:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
-        elif view_mode == "Nhật ký điểm danh chi tiết & Biểu đồ":
-            selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
-            node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
-            history_df = read_from_firebase(node_map_report[selected_report_role])
-            
-            if history_df.empty:
-                st.info(f"Chưa có dữ liệu điểm danh trên Firebase cho nhóm **{selected_report_role}**.")
-            else:
-                total_records = len(history_df)
-                on_time_count = len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]) if "Trạng Thái" in history_df.columns else 0
-                late_count = total_records - on_time_count
-                
-                c1, c2, c3 = st.columns(3)
-                c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", total_records)
-                c2.metric("Lượt Đúng giờ", on_time_count)
-                c3.metric("Lượt Trễ / Về sớm / Vi phạm", late_count)
-                
-                st.markdown("---")
-                
-                # KHÔI PHỤC BỘ BIỂU ĐỒ TRỰC QUAN
-                col_chart1, col_chart2 = st.columns(2)
-                
-                with col_chart1:
-                    st.markdown("**Biểu đồ Tỷ lệ Trạng thái Điểm danh**")
-                    if "Trạng Thái" in history_df.columns:
-                        status_counts = history_df["Trạng Thái"].value_counts().reset_index()
-                        status_counts.columns = ["Trạng Thái", "Số Lượng"]
-                        fig_pie = px.pie(
-                            status_counts, 
-                            values="Số Lượng", 
-                            names="Trạng Thái", 
-                            hole=0.4,
-                            color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900", "#6c757d"]
-                        )
-                        fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
-                        st.plotly_chart(fig_pie, use_container_width=True)
-
-                with col_chart2:
-                    st.markdown("**Biểu đồ Số lượt Điểm danh theo Đơn vị / Lớp**")
-                    unit_col = "Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]
-                    unit_counts = history_df[unit_col].value_counts().reset_index()
-                    unit_counts.columns = [unit_col, "Số Lượt"]
-                    fig_bar = px.bar(
-                        unit_counts, 
-                        x=unit_col, 
-                        y="Số Lượt", 
-                        color=unit_col,
-                        text_auto=True,
-                        color_discrete_sequence=px.colors.qualitative.Set2
-                    )
-                    fig_bar.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
-                    st.plotly_chart(fig_bar, use_container_width=True)
-
-                st.markdown("**Bảng Nhật ký Chi tiết:**")
-                st.dataframe(history_df, use_container_width=True)
-                
-                buffer = io.BytesIO()
-                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                    history_df.to_excel(writer, sheet_name='Sheet1', index=False)
-                    
-                st.download_button(
-                    label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
-                    data=buffer.getvalue(),
-                    file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
+        # --- CHỨC NĂNG 3: DANH SÁCH ĐƠN MINH CHỨNG / NGHỈ PHÉP ---
         else:
             mc_df = read_from_firebase("MinhChung_NghiPhep")
             if mc_df.empty:
@@ -883,7 +902,7 @@ with tabs[2]:
 
                 st.dataframe(mc_df, use_container_width=True)
                 
-                buffer = io.BytesIO()
+ buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                     mc_df.to_excel(writer, sheet_name='MinhChung', index=False)
                     
