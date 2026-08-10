@@ -135,7 +135,6 @@ def init_firebase():
         try:
             fb_sec = dict(st.secrets["firebase"])
             db_url = fb_sec.get("databaseURL")
-            
             cert_dict = {k: v for k, v in fb_sec.items() if k != "databaseURL"}
             
             if "private_key" in cert_dict:
@@ -149,7 +148,6 @@ def init_firebase():
 init_firebase()
 
 def clean_dict_for_firebase(d):
-    """Làm sạch dữ liệu và loại bỏ các ký tự cấm trong Key của Firebase (/ . # $ [ ])"""
     cleaned = {}
     forbidden_chars = ["/", ".", "#", "$", "[", "]"]
     for k, v in d.items():
@@ -216,7 +214,6 @@ def build_graph_url(file_path):
     else:
         return f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:"
 
-# Bộ nhớ tạm tự động tải lại từ OneDrive sau mỗi 3 phút (180 giây)
 @st.cache_data(ttl=180)
 def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
@@ -446,39 +443,46 @@ with tabs[0]:
 
             can_proceed = True
             
+            # --- TÍNH TOÁN LỊCH CA HỌC/LÀM VIỆC CHUẨN ---
             if user_role in ["Giảng viên", "Sinh viên"]:
                 s_h, s_m = lesson_schedule[start_lesson]["start"]
                 e_h, e_m = lesson_schedule[end_lesson]["end"]
                 sched_start = now_vn.replace(hour=s_h, minute=s_m, second=0, microsecond=0)
-                sched_end = now_vn.replace(hour=e_h, minute=e_m, second=0, microsecond=0)
+                sched_end_base = now_vn.replace(hour=e_h, minute=e_m, second=0, microsecond=0)
             else:
                 if "Sáng" in vc_shift:
                     sched_start = now_vn.replace(hour=7, minute=0, second=0, microsecond=0)
-                    sched_end = now_vn.replace(hour=11, minute=0, second=0, microsecond=0)
+                    sched_end_base = now_vn.replace(hour=11, minute=0, second=0, microsecond=0)
                 else:
                     sched_start = now_vn.replace(hour=13, minute=0, second=0, microsecond=0)
-                    sched_end = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
+                    sched_end_base = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
 
-            # ================= TỰ ĐỘNG ĐÓNG CA NẾU QUÊN CHECK-OUT (CÓ GẮN NHÃN VI PHẠM) =================
+            # Tính số phút vào trễ hiện tại
+            late_minutes_current = max(0, int((now_vn - sched_start).total_seconds() / 60)) if now_vn > sched_start else 0
+
+            # Xử lý bù giờ: Giảng viên & Viên chức phải bù giờ, Sinh viên KHÔNG bù giờ
+            if user_role in ["Giảng viên", "Viên chức"]:
+                sched_end = sched_end_base + timedelta(minutes=late_minutes_current)
+            else:
+                sched_end = sched_end_base
+
+            # ================= TỰ ĐỘNG ĐÓNG CA NẾU QUÊN CHECK-OUT (ĐÁNH NHÃN VI PHẠM) =================
             if action_type == "Vào ca (Check-in)" and last_action == "Vào ca (Check-in)":
                 try:
                     last_time_dt = datetime.strptime(last_time_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone(timedelta(hours=7)))
-                    
                     is_previous_shift = (last_time_dt.hour < 12 and now_vn.hour >= 12) or (last_time_dt.date() < now_vn.date())
                     
                     if is_previous_shift:
-                        # Xác định mốc kết thúc ca cũ
                         if "Thực hành" in last_note:
                             base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 40
                         elif "Lý thuyết" in last_note:
                             base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 20
-                        else: # Viên chức
+                        else:
                             base_end_h, base_end_m = 11 if last_time_dt.hour < 12 else 17, 0
 
                         auto_checkout_dt = last_time_dt.replace(hour=base_end_h, minute=base_end_m, second=0, microsecond=0)
                         unit_sub_disp = f"{fetched_sub} ({selected_class})" if user_role == "Sinh viên" else fetched_sub
 
-                        # Ghi nhận bản ghi Ra ca TỰ ĐỘNG nhưng đánh dấu VI PHẠM
                         auto_checkout_record = {
                             "Mã Số": input_id,
                             "Họ Và Tên": str(fetched_name),
@@ -490,12 +494,12 @@ with tabs[0]:
                             "Thao Tác": "Ra ca (Check-out)",
                             "Khoảng Cách (m)": 0.0,
                             "Địa Chỉ IP": "N/A (Tự động)",
-                            "Trạng Thái": "Chưa Ra ca (Tự động đóng)", # ĐÁNH DẤU VI PHẠM RÕ RÀNG
+                            "Trạng Thái": "Chưa Ra ca (Tự động đóng)",
+                            "Số Phút Trễ": 0,
                             "Ghi Chú": "Vi phạm quy định: Không thực hiện Ra ca tại trường. Hệ thống tự động đóng ca."
                         }
                         save_to_firebase(target_node, auto_checkout_record)
-                        st.warning(f"Cảnh báo: Bạn đã không thực hiện 'Ra ca' cho ca trước! Hệ thống đã ghi nhận trạng thái 'Chưa Ra ca (Tự động đóng)' để giải phóng ca mới.")
-                        
+                        st.warning("Cảnh báo: Bạn đã không thực hiện 'Ra ca' cho ca trước! Hệ thống đã ghi nhận trạng thái 'Chưa Ra ca (Tự động đóng)' để mở ca mới.")
                         last_action = "Ra ca (Check-out)"
                 except Exception:
                     pass
@@ -503,9 +507,8 @@ with tabs[0]:
             # ================= KIỂM TRA ĐIỀU KIỆN RA CA / VÀO CA =================
             if can_proceed:
                 if user_role == "Viên chức" and action_type == "Vào ca (Check-in)":
-                    late_limit = sched_start + timedelta(minutes=30)
-                    if now_vn > late_limit:
-                        st.error(f"Từ chối điểm danh: Đã quá 30 phút so với giờ bắt đầu ca ({sched_start.strftime('%H:%M')})! Giờ hiện tại: {now_vn.strftime('%H:%M')}. Vui lòng sang Tab 'Báo nghỉ phép' để nộp đơn.")
+                    if now_vn > sched_start + timedelta(minutes=30):
+                        st.error(f"Từ chối điểm danh: Đã quá 30 phút so với giờ bắt đầu ca ({sched_start.strftime('%H:%M')})! Vui lòng sang Tab 'Báo nghỉ phép' để nộp đơn.")
                         can_proceed = False
 
             if can_proceed:
@@ -518,7 +521,8 @@ with tabs[0]:
                         can_proceed = False
                     elif now_vn < sched_end - timedelta(minutes=10):
                         time_left = int((sched_end - now_vn).total_seconds() / 60)
-                        st.error(f"Chưa hết giờ ca làm việc! Ca kết thúc lúc {sched_end.strftime('%H:%M')}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
+                        msg_extension = " (Đã tính cộng bù phút vào trễ)" if (user_role in ["Giảng viên", "Viên chức"] and late_minutes_current > 15) else ""
+                        st.error(f"Chưa hết giờ ca làm việc! Ca kết thúc lúc {sched_end.strftime('%H:%M')}{msg_extension}. Bạn còn {time_left} phút nữa mới được phép Ra ca.")
                         can_proceed = False
 
                 elif action_type == "Vào ca (Check-in)":
@@ -533,20 +537,23 @@ with tabs[0]:
 
                 if user_role in ["Giảng viên", "Sinh viên"]:
                     if action_type == "Vào ca (Check-in)":
-                        if now_vn > sched_start + timedelta(minutes=15):
+                        if late_minutes_current > 15:
                             status = "Vào trễ"
-                            note = f"[{study_type}] Tiết {start_lesson} bắt đầu {sched_start.strftime('%H:%M')}. Điểm danh lúc {now_vn.strftime('%H:%M')}."
+                            if user_role == "Giảng viên":
+                                note = f"[{study_type}] Đi trễ {late_minutes_current} phút (Phải bù giờ đến {sched_end.strftime('%H:%M')}). Điểm danh lúc {now_vn.strftime('%H:%M')}."
+                            else: # Sinh viên
+                                note = f"[{study_type}] Đi trễ {late_minutes_current} phút (Ghi nhận chấm điểm rèn luyện). Điểm danh lúc {now_vn.strftime('%H:%M')}."
                         else:
-                            note = f"[{study_type}] Lịch Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end.strftime('%H:%M')})"
+                            note = f"[{study_type}] Lịch Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end_base.strftime('%H:%M')})"
                     else:
                         note = f"[{study_type}] Hoàn thành ca Tiết {start_lesson}-{end_lesson}"
-                else:
+                else: # Viên chức
                     if action_type == "Vào ca (Check-in)":
-                        if now_vn > sched_start + timedelta(minutes=15):
+                        if late_minutes_current > 15:
                             status = "Đi trễ (Có bù giờ)"
-                            note = f"[{vc_shift}] Đi trễ {int((now_vn - sched_start).total_seconds()/60)} phút. Giờ vào ca: {sched_start.strftime('%H:%M')}."
+                            note = f"[{vc_shift}] Đi trễ {late_minutes_current} phút (Phải bù giờ đến {sched_end.strftime('%H:%M')})."
                         else:
-                            note = f"[{vc_shift}] Đúng giờ ({sched_start.strftime('%H:%M')} - {sched_end.strftime('%H:%M')})"
+                            note = f"[{vc_shift}] Đúng giờ ({sched_start.strftime('%H:%M')} - {sched_end_base.strftime('%H:%M')})"
                     else:
                         note = f"[{vc_shift}] Hoàn thành ca làm việc"
 
@@ -562,6 +569,7 @@ with tabs[0]:
                     "Khoảng Cách (m)": round(curr_dist, 1),
                     "Địa Chỉ IP": user_ip if user_ip else "N/A",
                     "Trạng Thái": status,
+                    "Số Phút Trễ": late_minutes_current if status in ["Vào trễ", "Đi trễ (Có bù giờ)"] else 0,
                     "Ghi Chú": note
                 }
                 
@@ -697,115 +705,128 @@ with tabs[1]:
                 else:
                     st.error(f"Lỗi gửi đơn lên Firebase: {err_mc}")
 
-# ----------------- TAB 3: DASHBOARD -----------------
+# ----------------- TAB 3: DASHBOARD (BẢO BẬC MẬT KHẨU QUẢN TRỊ) -----------------
 with tabs[2]:
-    view_mode = st.radio("Chọn loại báo cáo:", ["Nhật ký điểm danh", "Danh sách đơn minh chứng / nghỉ phép"], horizontal=True, key="db_view_mode")
+    st.subheader("🔒 BÁO CÁO & THỐNG KÊ QUẢN TRỊ")
     
-    if view_mode == "Nhật ký điểm danh":
-        selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
-        
-        node_map_report = {
-            "Giảng viên": "LichSu_GV",
-            "Viên chức": "LichSu_VC",
-            "Sinh viên": "LichSu_SV"
-        }
-        report_node = node_map_report[selected_report_role]
-        
-        history_df = read_from_firebase(report_node)
-        
-        if history_df.empty:
-            st.info(f"Chưa có dữ liệu điểm danh trên Firebase cho nhóm **{selected_report_role}**.")
+    # Lấy Mật khẩu Admin từ Secrets (Mặc định: "123456" nếu chưa cài trong Secrets)
+    admin_pass = st.secrets.get("admin_password", "123456")
+    input_pass = st.text_input("Nhập mật khẩu Quản trị viên để truy cập:", type="password", key="db_pass_input")
+    
+    if input_pass != admin_pass:
+        if input_pass:
+            st.error("Mật khẩu không chính xác! Vui lòng liên hệ Ban quản trị.")
         else:
-            total_records = len(history_df)
-            on_time_count = len(history_df[history_df["Trạng Thái"] == "Đúng giờ"]) if "Trạng Thái" in history_df.columns else 0
-            late_count = total_records - on_time_count
-            
-            c1, c2, c3 = st.columns(3)
-            c1.metric(f"Tổng lượt điểm danh ({selected_report_role})", total_records)
-            c2.metric("Lượt Đúng giờ", on_time_count)
-            c3.metric("Lượt Trễ / Về sớm", late_count)
-            
-            st.markdown("---")
-            
-            col_chart1, col_chart2 = st.columns(2)
-            
-            with col_chart1:
-                st.markdown("**Biểu đồ Tỷ lệ Trạng thái Điểm danh**")
-                if "Trạng Thái" in history_df.columns:
-                    status_counts = history_df["Trạng Thái"].value_counts().reset_index()
-                    status_counts.columns = ["Trạng Thái", "Số Lượng"]
-                    fig_pie = px.pie(
-                        status_counts, 
-                        values="Số Lượng", 
-                        names="Trạng Thái", 
-                        hole=0.4,
-                        color_discrete_sequence=["#1877F2", "#E41E3F", "#FF9900"]
-                    )
-                    fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
-                    st.plotly_chart(fig_pie, use_container_width=True)
-
-            with col_chart2:
-                st.markdown("**Biểu đồ Số lượt Điểm danh theo Đơn vị / Lớp**")
-                unit_col = "Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]
-                unit_counts = history_df[unit_col].value_counts().reset_index()
-                unit_counts.columns = [unit_col, "Số Lượt"]
-                fig_bar = px.bar(
-                    unit_counts, 
-                    x=unit_col, 
-                    y="Số Lượt", 
-                    color=unit_col,
-                    text_auto=True,
-                    color_discrete_sequence=px.colors.qualitative.Set2
-                )
-                fig_bar.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
-                st.plotly_chart(fig_bar, use_container_width=True)
-
-            st.markdown("**Bảng Nhật ký Chi tiết:**")
-            st.dataframe(history_df, use_container_width=True)
-            
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                history_df.to_excel(writer, sheet_name='Sheet1', index=False)
-                
-            st.download_button(
-                label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
-                data=buffer.getvalue(),
-                file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.info("Vui lòng nhập mật khẩu Quản trị viên để xem báo cáo và xuất file Excel.")
     else:
-        mc_df = read_from_firebase("MinhChung_NghiPhep")
-        if mc_df.empty:
-            st.info("Chưa có đơn xin nghỉ phép / minh chứng nào được gửi lên hệ thống.")
-        else:
-            st.metric("Tổng số đơn đã gửi", len(mc_df))
+        st.success("Đã xác thực quyền Quản trị viên!")
+        st.markdown("---")
+        
+        view_mode = st.radio("Chọn loại báo cáo:", ["Báo cáo Tổng hợp Thi đua / Đèn Rèn luyện (Theo Tháng)", "Nhật ký điểm danh chi tiết", "Danh sách đơn minh chứng / nghỉ phép"], horizontal=True, key="db_view_mode")
+        
+        if view_mode == "Báo cáo Tổng hợp Thi đua / Đèn Rèn luyện (Theo Tháng)":
+            selected_report_role = st.selectbox("Chọn đối tượng:", ["Giảng viên", "Viên chức", "Sinh viên"], key="stat_role_select")
             
-            col_mc_chart1, col_mc_chart2 = st.columns(2)
-            with col_mc_chart1:
-                st.markdown("**Phân loại Đơn theo Đối tượng**")
-                if "Đối Tượng" in mc_df.columns:
-                    role_mc_counts = mc_df["Đối Tượng"].value_counts().reset_index()
-                    role_mc_counts.columns = ["Đối Tượng", "Số Lượng"]
-                    fig_mc_role = px.pie(role_mc_counts, values="Số Lượng", names="Đối Tượng", hole=0.3)
-                    st.plotly_chart(fig_mc_role, use_container_width=True)
+            node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
+            history_df = read_from_firebase(node_map_report[selected_report_role])
+            
+            if history_df.empty:
+                st.info("Chưa có dữ liệu điểm danh.")
+            else:
+                history_df["THỜI GIAN DT"] = pd.to_datetime(history_df["Thời Gian"], errors='coerce')
+                history_df["THÁNG_NĂM"] = history_df["THỜI GIAN DT"].dt.strftime("%m/%Y")
                 
-            with col_mc_chart2:
-                st.markdown("**Phân loại theo Loại Yêu cầu**")
-                if "Loại Yêu Cầu" in mc_df.columns:
-                    type_mc_counts = mc_df["Loại Yêu Cầu"].value_counts().reset_index()
-                    type_mc_counts.columns = ["Loại Yêu Cầu", "Số Lượng"]
-                    fig_mc_type = px.bar(type_mc_counts, x="Loại Yêu Cầu", y="Số Lượng", color="Loại Yêu Cầu", text_auto=True)
-                    st.plotly_chart(fig_mc_type, use_container_width=True)
+                available_months = sorted(history_df["THÁNG_NĂM"].dropna().unique(), reverse=True)
+                selected_month = st.selectbox("Chọn Tháng/Năm xem báo cáo thi đua:", available_months if available_months else [now_vn.strftime("%m/%Y")])
+                
+                df_month = history_df[history_df["THÁNG_NĂM"] == selected_month].copy()
+                
+                if df_month.empty:
+                    st.info(f"Không có dữ liệu điểm danh trong tháng {selected_month}.")
+                else:
+                    if "Số Phút Trễ" not in df_month.columns:
+                        df_month["Số Phút Trễ"] = 0
+                    df_month["Số Phút Trễ"] = pd.to_numeric(df_month["Số Phút Trễ"], errors='coerce').fillna(0)
 
-            st.dataframe(mc_df, use_container_width=True)
+                    # Gom nhóm thống kê theo từng cá nhân
+                    summary_list = []
+                    grouped = df_month.groupby("Mã Số")
+                    for ms, group in grouped:
+                        name = group["Họ Và Tên"].iloc[0] if "Họ Và Tên" in group.columns else ""
+                        unit = group["Đơn Vị"].iloc[0] if "Đơn Vị" in group.columns else ""
+                        sub_class = group["Bộ Môn - Lớp"].iloc[0] if "Bộ Môn - Lớp" in group.columns else ""
+                        
+                        total_att = len(group)
+                        on_time = len(group[group["Trạng Thái"] == "Đúng giờ"])
+                        late_cnt = len(group[group["Trạng Thái"].str.contains("trễ|Trễ", na=False)])
+                        unclosed_cnt = len(group[group["Trạng Thái"].str.contains("Chưa Ra ca", na=False)])
+                        total_late_min = int(group["Số Phút Trễ"].sum())
+                        
+                        summary_list.append({
+                            "Mã Số": ms,
+                            "Họ Và Tên": name,
+                            "Đơn Vị": unit,
+                            "Bộ Môn - Lớp": sub_class,
+                            "Tháng": selected_month,
+                            "Tổng Số Lượt Điểm Danh": total_att,
+                            "Số Lượt Đúng Giờ": on_time,
+                            "Số Lượt Đi Trễ": late_cnt,
+                            "Số Lượt Quên Ra Ca": unclosed_cnt,
+                            "Tổng Số Phút Trễ (Tháng)": total_late_min
+                        })
+                    
+                    sum_df = pd.DataFrame(summary_list)
+                    
+                    st.markdown(f"### 📊 BẢNG THỐNG KÊ THI ĐUẢ / ĐIỂM RÈN LUYỆN - THÁNG {selected_month}")
+                    st.dataframe(sum_df, use_container_width=True)
+                    
+                    buffer = io.BytesIO()
+                    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                        sum_df.to_excel(writer, sheet_name=f'ThiDua_{selected_month.replace("/", "_")}', index=False)
+                        
+                    st.download_button(
+                        label=f"XUẤT BÁO CÁO THI ĐUẢ THÁNG {selected_month} (.XLSX)",
+                        data=buffer.getvalue(),
+                        file_name=f"Bao_Cao_Thi_Dua_{selected_report_role}_{selected_month.replace('/', '_')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
+        elif view_mode == "Nhật ký điểm danh chi tiết":
+            selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
+            node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
+            history_df = read_from_firebase(node_map_report[selected_report_role])
             
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                mc_df.to_excel(writer, sheet_name='MinhChung', index=False)
+            if history_df.empty:
+                st.info(f"Chưa có dữ liệu điểm danh trên Firebase cho nhóm **{selected_report_role}**.")
+            else:
+                st.markdown("**Bảng Nhật ký Chi tiết:**")
+                st.dataframe(history_df, use_container_width=True)
                 
-            st.download_button(
-                label="XUẤT BÁO CÁO MINH CHỨNG (.XLSX)",
-                data=buffer.getvalue(),
-                file_name=f"Bao_Cao_Minh_Chung_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    history_df.to_excel(writer, sheet_name='Sheet1', index=False)
+                    
+                st.download_button(
+                    label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
+                    data=buffer.getvalue(),
+                    file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+        else:
+            mc_df = read_from_firebase("MinhChung_NghiPhep")
+            if mc_df.empty:
+                st.info("Chưa có đơn xin nghỉ phép / minh chứng nào được gửi lên hệ thống.")
+            else:
+                st.dataframe(mc_df, use_container_width=True)
+                
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    mc_df.to_excel(writer, sheet_name='MinhChung', index=False)
+                    
+                st.download_button(
+                    label="XUẤT BÁO CÁO MINH CHỨNG (.XLSX)",
+                    data=buffer.getvalue(),
+                    file_name=f"Bao_Cao_Minh_Chung_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
