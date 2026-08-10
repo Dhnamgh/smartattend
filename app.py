@@ -133,7 +133,6 @@ def shorten_unit_name(name):
     if not name or pd.isna(name): return "Chưa xác định"
     s = str(name).strip()
     
-    # Xử lý tất cả các biến thể của Tổ hành chính tổ chức
     if "Hành chính tổ chức" in s or "Hành chính Tổ chức" in s or "HCTC" in s or "Văn phòng khoa" in s or "Văn phòng Khoa" in s:
         return "Tổ HCTC-VPK"
         
@@ -795,7 +794,7 @@ with tabs[2]:
             "Danh sách đơn minh chứng / nghỉ phép"
         ], index=0, horizontal=True, key="db_view_mode")
         
-        # --- CHỨC NĂNG 1: NHẬT KÝ CHI TIẾT & BIỂU ĐỒ ---
+        # --- CHỨC NĂNG 1: NHẬT KÝ CHI TIẾT & BIỂU ĐỒ (LỌC ĐỒNG NHẤT TOÀN DIỆN) ---
         if view_mode == "Nhật ký điểm danh chi tiết & Biểu đồ":
             selected_report_role = st.selectbox("Chọn nhóm dữ liệu xem báo cáo:", ["Giảng viên", "Viên chức", "Sinh viên"], key="report_role_select")
             node_map_report = {"Giảng viên": "LichSu_GV", "Viên chức": "LichSu_VC", "Sinh viên": "LichSu_SV"}
@@ -806,7 +805,7 @@ with tabs[2]:
             else:
                 unit_col = "Bộ Môn - Lớp" if "Bộ Môn - Lớp" in history_df.columns else ("Bộ Môn / Lớp" if "Bộ Môn / Lớp" in history_df.columns else ("Đơn Vị" if "Đơn Vị" in history_df.columns else history_df.columns[3]))
                 
-                # CHUẨN HÓA VIẾT TẮT TẤT CẢ TÊN BỘ MÔN / TỔ HCTC-VPK
+                # CHUẨN HÓA TẤT CẢ TÊN BỘ MÔN / TỔ HCTC-VPK ĐẾN CẢ BẢNG
                 history_df[unit_col] = history_df[unit_col].apply(shorten_unit_name)
 
                 available_units = ["Tất cả (Toàn Khoa / Toàn Trường)"] + sorted([str(u) for u in history_df[unit_col].dropna().unique() if str(u).strip() != ""])
@@ -815,15 +814,19 @@ with tabs[2]:
                 with c_f1:
                     selected_unit_filter = st.selectbox("📌 Lọc dữ liệu theo Bộ môn / Lớp / Đơn vị:", available_units, index=0, key="dashboard_unit_filter")
                 with c_f2:
-                    # NÚT CHỌN MẶC ĐỊNH MỞ BÀI CHO BIỂU ĐỒ TRÒN (MẶC ĐỊNH LÀ VÀO CA)
-                    selected_action_pie = st.selectbox("⭕ Chọn góc nhìn Biểu đồ tròn theo Thao tác:", ["Vào ca (Check-in)", "Ra ca (Check-out)", "Tất cả Thao tác"], index=0, key="pie_action_filter")
+                    # BỘ LỌC THAO TÁC CHUNG MẶC ĐỊNH LÀ "TẤT CẢ" (GỒM CẢ VÀO CA VÀ RA CA)
+                    selected_action_filter = st.selectbox("🔄 Lọc theo Thao tác ca làm việc:", ["Tất cả (Vào ca & Ra ca)", "Vào ca (Check-in)", "Ra ca (Check-out)"], index=0, key="dashboard_action_filter")
+
+                # ================= ÁP DỤNG LỌC ĐỒNG NHẤT BỘ DỮ LIỆU CHÍNH =================
+                filtered_df = history_df.copy()
 
                 if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)":
-                    filtered_df = history_df[history_df[unit_col] == selected_unit_filter].copy()
-                else:
-                    filtered_df = history_df.copy()
-                
-                # Metric thống kê
+                    filtered_df = filtered_df[filtered_df[unit_col] == selected_unit_filter]
+
+                if selected_action_filter != "Tất cả (Vào ca & Ra ca)":
+                    filtered_df = filtered_df[filtered_df["Thao Tác"] == selected_action_filter]
+
+                # Metric thống kê đồng bộ 100% theo filtered_df
                 total_records = len(filtered_df)
                 checkin_count = len(filtered_df[filtered_df["Thao Tác"] == "Vào ca (Check-in)"]) if "Thao Tác" in filtered_df.columns else 0
                 checkout_count = len(filtered_df[filtered_df["Thao Tác"] == "Ra ca (Check-out)"]) if "Thao Tác" in filtered_df.columns else 0
@@ -833,7 +836,7 @@ with tabs[2]:
                 late_count = len(filtered_df[filtered_df["Trạng Thái"].str.contains("trễ|Trễ", na=False)]) if "Trạng Thái" in filtered_df.columns else 0
                 
                 m1, m2, m3, m4, m5 = st.columns(5)
-                m1.metric("Tổng lượt điểm danh", total_records)
+                m1.metric("Tổng lượt ghi nhận", total_records)
                 m2.metric("Lượt Vào ca (Check-in)", checkin_count)
                 m3.metric("Lượt Ra ca (Check-out)", checkout_count)
                 m4.metric("Lượt Đi trễ", late_count)
@@ -843,18 +846,14 @@ with tabs[2]:
                 
                 col_chart1, col_chart2 = st.columns(2)
                 
+                # 1. BIỂU ĐỒ TRÒN (ĐỒNG NHẤT THEO FILTERED_DF)
                 with col_chart1:
-                    chart_title_suffix = f" - {selected_unit_filter}" if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)" else " (Toàn Khoa)"
-                    st.markdown(f"**Biểu đồ Tỷ lệ Trạng thái [{selected_action_pie}]{chart_title_suffix}**")
-                    
-                    # Lọc dữ liệu riêng cho Biểu đồ tròn theo Thao tác được chọn
-                    if selected_action_pie != "Tất cả Thao tác":
-                        pie_df = filtered_df[filtered_df["Thao Tác"] == selected_action_pie].copy()
-                    else:
-                        pie_df = filtered_df.copy()
+                    chart_title_unit = f" - {selected_unit_filter}" if selected_unit_filter != "Tất cả (Toàn Khoa / Toàn Trường)" else " (Toàn Khoa)"
+                    chart_title_action = f" [{selected_action_filter}]"
+                    st.markdown(f"**Biểu đồ Tỷ lệ Trạng thái{chart_title_action}{chart_title_unit}**")
 
-                    if "Trạng Thái" in pie_df.columns and not pie_df.empty:
-                        status_counts = pie_df["Trạng Thái"].value_counts().reset_index()
+                    if "Trạng Thái" in filtered_df.columns and not filtered_df.empty:
+                        status_counts = filtered_df["Trạng Thái"].value_counts().reset_index()
                         status_counts.columns = ["Trạng Thái", "Số Lượng"]
                         fig_pie = px.pie(
                             status_counts, 
@@ -866,12 +865,13 @@ with tabs[2]:
                         fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10))
                         st.plotly_chart(fig_pie, use_container_width=True)
                     else:
-                        st.info(f"Chưa có dữ liệu lượt [{selected_action_pie}] cho lựa chọn này.")
+                        st.info("Không có dữ liệu phù hợp với bộ lọc hiện tại.")
 
+                # 2. BIỂU ĐỒ CỘT (ĐỒNG NHẤT THEO FILTERED_DF)
                 with col_chart2:
-                    st.markdown("**Biểu đồ Thống kê Lượt Vào ca & Ra ca theo Bộ môn / Đơn vị**")
-                    if not history_df.empty and "Thao Tác" in history_df.columns:
-                        action_unit_counts = history_df.groupby([unit_col, "Thao Tác"]).size().reset_index(name="Số Lượt")
+                    st.markdown(f"**Biểu đồ Phân bố theo Bộ môn / Đơn vị{chart_title_unit}**")
+                    if not filtered_df.empty and "Thao Tác" in filtered_df.columns:
+                        action_unit_counts = filtered_df.groupby([unit_col, "Thao Tác"]).size().reset_index(name="Số Lượt")
                         fig_bar = px.bar(
                             action_unit_counts, 
                             x=unit_col, 
@@ -883,8 +883,11 @@ with tabs[2]:
                         )
                         fig_bar.update_layout(margin=dict(t=10, b=10, l=10, r=10))
                         st.plotly_chart(fig_bar, use_container_width=True)
+                    else:
+                        st.info("Không có dữ liệu phù hợp để vẽ biểu đồ cột.")
 
-                st.markdown(f"**Bảng Nhật ký Chi tiết ({selected_unit_filter}):**")
+                # 3. BẢNG DỮ LIỆU NHẬT KÝ CHI TIẾT VÀ XUẤT FILE EXCEL (ĐỒNG NHẤT ĐỔI THEO FILTERED_DF)
+                st.markdown(f"**Bảng Nhật ký Chi tiết ({selected_report_role} - {selected_unit_filter} - {selected_action_filter}):**")
                 st.dataframe(filtered_df, use_container_width=True)
                 
                 buffer = io.BytesIO()
@@ -892,9 +895,9 @@ with tabs[2]:
                     filtered_df.to_excel(writer, sheet_name='Sheet1', index=False)
                     
                 st.download_button(
-                    label=f"XUẤT BÁO CÁO EXCEL {selected_report_role.upper()} (.XLSX)",
+                    label=f"XUẤT BÁO CÁO EXCEL ĐÃ LỌC (.XLSX)",
                     data=buffer.getvalue(),
-                    file_name=f"Bao_Cao_Diem_Danh_{selected_report_role}_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
+                    file_name=f"Bao_Cao_{selected_report_role}_{now_vn.strftime('%Y%m%d_%H%M')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
