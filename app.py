@@ -73,13 +73,28 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
-MAX_ALLOWED_RADIUS = 145.0 
+MAX_ALLOWED_RADIUS = 70.0 
 ALLOWED_IP_PREFIXES = ["103.180.97.", "118.69.1.", "203.162.1.", "171.244.1."]
 
 CAMPUSES = {
-    "CS1": {"name": "Cơ sở 1", "address": "217 Hồng Bàng, P. Chợ Lớn , TP.HCM", "lat": 10.754535, "lng": 106.663334},
-    "CS2": {"name": "Cơ sở 2", "address": "201 Nguyễn Chí Thanh, P. Chợ Lớn, TP.HCM", "lat": 10.757973, "lng": 106.663351},
-    "CS3": {"name": "Cơ sở 3", "address": "41 Đinh Tiên Hoàng, P.Sài Gòn, TP.HCM", "lat": 10.785324, "lng": 106.702328}
+    "CS1": {
+        "name": "Cơ sở 1", 
+        "address": "217 Hồng Bàng, P. Chợ Lớn, TP.HCM", 
+        "lat": 10.754535, 
+        "lng": 106.663351
+    },
+    "CS2": {
+        "name": "Cơ sở 2", 
+        "address": "201 Nguyễn Chí Thanh, P. Chợ Lớn, TP.HCM", 
+        "lat": 10.757973, 
+        "lng": 106.661271
+    },
+    "CS3": {
+        "name": "Cơ sở 3", 
+        "address": "41 Đinh Tiên Hoàng, P. Sài Gòn, TP.HCM", 
+        "lat": 10.785324, 
+        "lng": 106.702328
+    }
 }
 
 LESSON_TIMES_THEORY = {
@@ -225,15 +240,19 @@ with tabs[0]:
     with col1:
         user_role = st.radio("Chọn đối tượng:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True)
         
+        # Xác định độ dài mã số theo từng đối tượng
+        expected_len = 9 if user_role == "Sinh viên" else 8
+        id_placeholder = "Ví dụ: 060712345" if user_role == "Sinh viên" else "Ví dụ: 06071234"
+        
         selected_class = ""
         if user_role == "Sinh viên":
             selected_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST)
             
-        input_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001", key="t1_id").strip()
+        input_id = st.text_input(f"Nhập Mã số ({expected_len} chữ số):", max_chars=expected_len, placeholder=id_placeholder, key="t1_id").strip()
         
         fetched_name, fetched_unit, fetched_sub, fetched_course = "", "", "", ""
         
-        if len(input_id) == 8:
+        if len(input_id) == expected_len:
             if user_role in ["Giảng viên", "Viên chức"]:
                 target_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
                 if not target_df.empty:
@@ -258,7 +277,7 @@ with tabs[0]:
                     col_sub = target_df.columns[3] if len(target_df.columns) > 3 else ""
                     col_course = target_df.columns[4] if len(target_df.columns) > 4 else ""
                     
-                    target_df["CLEAN_ID"] = target_df[col_mssv].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
+                    target_df["CLEAN_ID"] = target_df[col_mssv].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(9)
                     match = target_df[target_df["CLEAN_ID"] == input_id]
                     if not match.empty:
                         fetched_name = match.iloc[0][col_name]
@@ -266,7 +285,7 @@ with tabs[0]:
                         fetched_sub = match.iloc[0][col_sub] if col_sub else ""
                         fetched_course = match.iloc[0][col_course] if col_course else ""
 
-        st.text_input("Họ và tên:", value=str(fetched_name if fetched_name else ("Mã số chưa chính xác" if len(input_id)==8 else "")), disabled=True)
+        st.text_input("Họ và tên:", value=str(fetched_name if fetched_name else ("Mã số chưa chính xác" if len(input_id)==expected_len else "")), disabled=True)
         st.text_input("Đơn vị (Trường/Khoa):", value=str(fetched_unit), disabled=True)
         st.text_input("Bộ môn:", value=str(fetched_sub), disabled=True)
         if user_role == "Sinh viên":
@@ -277,7 +296,6 @@ with tabs[0]:
         study_type = "Lý thuyết"
         vc_shift = "Ca Sáng (07:00 - 11:00)"
 
-        # HIỂN THỊ KHUNG CHỌN TIẾT / CA CHỈ KHI TRONG GIỜ LÀM VIỆC (06:00 - 18:00)
         if is_out_of_hours:
             st.markdown('<div class="status-box-error">Hệ thống đã đóng điểm danh. Hiện tại nằm ngoài khung giờ làm việc / học tập quy định (06:00 - 18:00)!</div>', unsafe_allow_html=True)
         else:
@@ -376,8 +394,8 @@ with tabs[0]:
             st.error(f"Điểm danh thất bại: Bạn đang ở cách trường {curr_dist:.1f}m (Vượt quá bán kính {int(MAX_ALLOWED_RADIUS)}m cho phép)!")
         elif not ip_valid:
             st.error("Điểm danh thất bại: Thiết bị chưa kết nối vào Wi-Fi nội bộ nhà trường!")
-        elif len(input_id) != 8 or not fetched_name:
-            st.error("Mã số 8 chữ số không tồn tại trong danh sách dữ liệu trên OneDrive!")
+        elif len(input_id) != expected_len or not fetched_name:
+            st.error(f"Mã số {expected_len} chữ số không tồn tại trong danh sách dữ liệu trên OneDrive!")
         else:
             file_map = {
                 "Giảng viên": "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
@@ -390,7 +408,7 @@ with tabs[0]:
             last_action, last_time_str, last_note = None, "", ""
             
             if not existing_df.empty and "Mã Số" in existing_df.columns:
-                existing_df["CLEAN_ID"] = existing_df["Mã Số"].astype(str).str.strip().str.zfill(8)
+                existing_df["CLEAN_ID"] = existing_df["Mã Số"].astype(str).str.strip().str.zfill(expected_len)
                 user_records = existing_df[existing_df["CLEAN_ID"] == input_id]
                 if not user_records.empty:
                     last_record = user_records.iloc[-1]
@@ -400,13 +418,12 @@ with tabs[0]:
 
             can_proceed = True
             
-            # --- RÀNG BUỘC THỜI GIAN THEO CA ĐIỂM DANH ---
             if user_role in ["Giảng viên", "Sinh viên"]:
                 s_h, s_m = lesson_schedule[start_lesson]["start"]
                 e_h, e_m = lesson_schedule[end_lesson]["end"]
                 sched_start = now_vn.replace(hour=s_h, minute=s_m, second=0, microsecond=0)
                 sched_end = now_vn.replace(hour=e_h, minute=e_m, second=0, microsecond=0)
-            else: # Viên chức
+            else:
                 if "Sáng" in vc_shift:
                     sched_start = now_vn.replace(hour=7, minute=0, second=0, microsecond=0)
                     sched_end = now_vn.replace(hour=11, minute=0, second=0, microsecond=0)
@@ -414,7 +431,6 @@ with tabs[0]:
                     sched_start = now_vn.replace(hour=13, minute=0, second=0, microsecond=0)
                     sched_end = now_vn.replace(hour=17, minute=0, second=0, microsecond=0)
 
-                # Kiểm tra trễ > 30 phút đối với Viên chức
                 if action_type == "Vào ca (Check-in)":
                     late_limit = sched_start + timedelta(minutes=30)
                     if now_vn > late_limit:
@@ -453,7 +469,7 @@ with tabs[0]:
                             note = f"[{study_type}] Lịch Tiết {start_lesson}-{end_lesson} ({sched_start.strftime('%H:%M')} - {sched_end.strftime('%H:%M')})"
                     else:
                         note = f"[{study_type}] Hoàn thành ca Tiết {start_lesson}-{end_lesson}"
-                else: # Viên chức
+                else:
                     if action_type == "Vào ca (Check-in)":
                         if now_vn > sched_start + timedelta(minutes=15):
                             status = "Đi trễ (Có bù giờ)"
@@ -477,16 +493,19 @@ with tabs[0]:
 with tabs[1]:
     mc_user_role = st.radio("Chọn đối tượng nộp đơn:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True, key="mc_role_radio")
     
+    mc_expected_len = 9 if mc_user_role == "Sinh viên" else 8
+    mc_placeholder = "Ví dụ: 060712345" if mc_user_role == "Sinh viên" else "Ví dụ: 06071234"
+    
     mc_class = ""
     if mc_user_role == "Sinh viên":
         mc_class = st.selectbox("Chọn Lớp sinh viên:", CLASS_LIST, key="mc_class_select")
         
-    mc_id = st.text_input("Nhập Mã số (8 chữ số):", max_chars=8, placeholder="Ví dụ: 06071234 hoặc 26001001", key="mc_id_input").strip()
+    mc_id = st.text_input(f"Nhập Mã số ({mc_expected_len} chữ số):", max_chars=mc_expected_len, placeholder=mc_placeholder, key="mc_id_input").strip()
     
     mc_fetched_name = ""
     mc_fetched_unit = ""
     
-    if len(mc_id) == 8:
+    if len(mc_id) == mc_expected_len:
         if mc_user_role in ["Giảng viên", "Viên chức"]:
             cbvc_df = read_excel_from_onedrive("OGSM/ATTENDANCE/DATA/CBVC.xlsx", sheet_name="Nhansu")
             if not cbvc_df.empty:
@@ -506,7 +525,7 @@ with tabs[1]:
                 col_name = sv_df.columns[1] if len(sv_df.columns) > 1 else sv_df.columns[0]
                 col_unit = sv_df.columns[2] if len(sv_df.columns) > 2 else ""
                 
-                sv_df["CLEAN_ID"] = sv_df[col_mssv].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
+                sv_df["CLEAN_ID"] = sv_df[col_mssv].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(9)
                 match = sv_df[sv_df["CLEAN_ID"] == mc_id]
                 if not match.empty:
                     mc_fetched_name = match.iloc[0][col_name]
@@ -514,7 +533,7 @@ with tabs[1]:
 
     col_mc1, col_mc2 = st.columns(2)
     with col_mc1:
-        st.text_input("Họ và tên người nộp:", value=str(mc_fetched_name if mc_fetched_name else ("Mã số chưa chính xác" if len(mc_id)==8 else "")), disabled=True, key="mc_name_disp")
+        st.text_input("Họ và tên người nộp:", value=str(mc_fetched_name if mc_fetched_name else ("Mã số chưa chính xác" if len(mc_id)==mc_expected_len else "")), disabled=True, key="mc_name_disp")
     with col_mc2:
         st.text_input("Đơn vị / Lớp:", value=str(mc_fetched_unit if mc_fetched_unit else ""), disabled=True, key="mc_unit_disp")
 
@@ -523,7 +542,7 @@ with tabs[1]:
     is_morning_attended = False
     is_afternoon_attended = False
 
-    if len(mc_id) == 8 and mc_fetched_name:
+    if len(mc_id) == mc_expected_len and mc_fetched_name:
         check_paths = [
             "OGSM/ATTENDANCE/DATA/LichSu_GV.xlsx",
             "OGSM/ATTENDANCE/DATA/LichSu_VC.xlsx",
@@ -534,7 +553,7 @@ with tabs[1]:
         for path in check_paths:
             hist_df = read_excel_from_onedrive(path)
             if not hist_df.empty and "Mã Số" in hist_df.columns and "Thời Gian" in hist_df.columns:
-                hist_df["CLEAN_ID"] = hist_df["Mã Số"].astype(str).str.strip().str.zfill(8)
+                hist_df["CLEAN_ID"] = hist_df["Mã Số"].astype(str).str.strip().str.zfill(mc_expected_len)
                 hist_df["DATE_STR"] = hist_df["Thời Gian"].astype(str).str[:10]
                 
                 records_today = hist_df[(hist_df["CLEAN_ID"] == mc_id) & (hist_df["DATE_STR"] == today_str)]
@@ -558,8 +577,8 @@ with tabs[1]:
         btn_submit = st.form_submit_button("GỬI YÊU CẦU MINH CHỨNG")
         
         if btn_submit:
-            if len(mc_id) != 8 or not mc_fetched_name:
-                st.error("Mã số 8 chữ số không tồn tại trong danh sách dữ liệu trên OneDrive! Vui lòng kiểm tra lại.")
+            if len(mc_id) != mc_expected_len or not mc_fetched_name:
+                st.error(f"Mã số {mc_expected_len} chữ số không tồn tại trong danh sách dữ liệu trên OneDrive! Vui lòng kiểm tra lại.")
             elif not mc_reason:
                 st.error("Vui lòng nhập lý do chi tiết!")
             elif mc_type == "Nghỉ phép Cả Ngày" and has_attended_today:
