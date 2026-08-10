@@ -220,7 +220,8 @@ def build_graph_url(file_path):
         return f"https://graph.microsoft.com/v1.0/me/drive/root:/{file_path}:"
 
 # Thêm Cache 1 giờ (3600 giây) cho hàm đọc file từ OneDrive
-@st.cache_data(ttl=3600)
+# Đổi ttl=3600 thành ttl=300 (Bộ nhớ tự làm mới sau mỗi 5 phút)
+@st.cache_data(ttl=300)
 def read_excel_from_onedrive(file_path, sheet_name=None):
     token = get_azure_token()
     if not token: return pd.DataFrame()
