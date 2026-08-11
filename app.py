@@ -1,4 +1,12 @@
 import streamlit as st
+
+st.set_page_config(
+    page_title="HỆ THỐNG QUẢN LÝ UMP", 
+    page_icon="🏫", 
+    layout="wide"
+)
+
+import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import math
