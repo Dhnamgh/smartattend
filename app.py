@@ -1,12 +1,4 @@
 import streamlit as st
-
-st.set_page_config(
-    page_title="HỆ THỐNG QUẢN LÝ UMP", 
-    page_icon="🏫", 
-    layout="wide"
-)
-
-import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import math
@@ -19,86 +11,76 @@ from streamlit_js_eval import get_geolocation, streamlit_js_eval
 import firebase_admin
 from firebase_admin import credentials, db
 
-# ================= 1. CẤU HÌNH GIAO DIỆN & STYLE =================
+# ================= 1. CẤU HÌNH GIAO DIỆN (CHỈ GỌI 1 LẦN DUY NHẤT) =================
 st.set_page_config(
-    page_title="HỆ THỐNG QUẢN LÝ UMP", 
+    page_title="HỆ THỐNG QUẢN LÝ UMP",
     page_icon="🏫",
     layout="wide",
-    initial_sidebar_state="expanded" # Ép hiện thanh Menu Sidebar chứa các App con
+    initial_sidebar_state="collapsed"
 )
 
+# ================= 2. CSS TẠO THANH MENU NGANG MÀU XANH FACEBOOK =================
 st.markdown("""
 <style>
-    /* Ẩn bớt footer và các nút Deploy dư thừa, GIỮ LẠI Header để hiện Menu Sidebar */
-    #MainMenu {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
-    .stAppDeployButton {display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
+    /* Ẩn Sidebar mặc định của Streamlit */
+    [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stSidebarNav"] { display: none !important; }
     
-    /* Ẩn các vương miện / lá cờ / badge đè ở góc dưới bên phải */
-    div[class*="viewerBadge"] {display: none !important;}
-    div[class*="styles_viewerBadge"] {display: none !important;}
-    div[class*="viewerBadgeContainer"] {display: none !important;}
-    iframe[title*="streamlit"] {display: none !important;}
+    /* Ẩn Header & Footer mặc định */
+    #MainMenu { visibility: hidden !important; }
+    footer { visibility: hidden !important; }
+    header { visibility: hidden !important; }
+    .stAppDeployButton { display: none !important; }
+    [data-testid="stStatusWidget"] { display: none !important; }
+
+    /* Container cho Thanh Menu Ngang màu xanh Facebook */
+    .navbar-container {
+        background-color: #1877F2;
+        padding: 12px 20px;
+        border-radius: 8px;
+        margin-bottom: 25px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+    }
     
-    /* Style chuẩn cho giao diện app UMP */
-    div[data-baseweb="tab-list"] { gap: 6px; }
-    button[data-baseweb="tab"] {
-        background-color: #1877F2 !important;
+    /* Style chữ và nút bấm trên thanh Menu */
+    div[data-testid="column"] div.stButton > button {
+        background-color: transparent !important;
         color: #FFFFFF !important;
-        border-radius: 4px !important;
-        padding: 8px 16px !important;
-        font-weight: bold !important;
-        font-size: 14px !important;
-        border: none !important;
-    }
-    button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #0D52B5 !important;
-        box-shadow: 0px 2px 5px rgba(0,0,0,0.3);
-    }
-    input[disabled] {
-        -webkit-text-fill-color: #000000 !important;
-        color: #000000 !important;
-        font-weight: 700 !important;
-        background-color: #F0F2F5 !important;
-        opacity: 1 !important;
-    }
-    .stCaption {
-        color: #111111 !important;
+        border: 1px solid rgba(255, 255, 255, 0.4) !important;
         font-weight: 600 !important;
-        font-size: 13px !important;
-    }
-    div.stButton > button {
-        background-color: #1877F2 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        font-weight: bold !important;
-        font-size: 17px !important;
-        padding: 10px 0px !important;
+        font-size: 15px !important;
+        padding: 8px 16px !important;
         border-radius: 6px !important;
+        width: 100% !important;
+        transition: all 0.3s ease !important;
     }
-    div.stButton > button:hover {
+    
+    div[data-testid="column"] div.stButton > button:hover {
         background-color: #0D52B5 !important;
-        color: #FFFFFF !important;
-    }
-    .status-box-success {
-        background-color: #E7F3FF;
-        border-left: 5px solid #1877F2;
-        padding: 10px;
-        margin-bottom: 8px;
-        color: #050505;
-        font-weight: 500;
-    }
-    .status-box-error {
-        background-color: #FFEBE9;
-        border-left: 5px solid #E41E3F;
-        padding: 10px;
-        margin-bottom: 8px;
-        color: #050505;
-        font-weight: 500;
+        border-color: #FFFFFF !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ================= 3. THANH MENU ĐIỀU HƯỚNG BẰNG NÚT BẤM =================
+st.markdown('<div class="navbar-container">', unsafe_allow_html=True)
+col1, col2, col3, col_pad = st.columns([2, 2, 2, 4])
+
+with col1:
+    if st.button("Điểm danh UMP", use_container_width=True):
+        st.switch_page("app.py")
+
+with col2:
+    if st.button("Sự kiện & Event", use_container_width=True):
+        st.switch_page("pages/event.py")
+
+with col3:
+    if st.button("Quản trị OGSM", use_container_width=True):
+        st.switch_page("pages/ogsm.py")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ================= PHẦN CODE XỬ LÝ CHÍNH CỦA APP ĐIỂM DANH BẮT ĐẦU TỪ ĐÂY =================
 
 CLASS_LIST = ["D26", "Y26", "RHM26", "YTCC26", "YHDP26", "DD26", "PHR26", "ĐD26", "XN26", "PHCN26"]
 MAX_ALLOWED_RADIUS = 150.0 
