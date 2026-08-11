@@ -40,12 +40,17 @@ class AppConfig(BaseModel):
 def load_config() -> AppConfig:
     """
     Loads and validates application settings directly from st.secrets without fallbacks.
+    Supports reading from [ogsm] section or root secrets.
     """
     try:
-        secrets = st.secrets
+        # 1. Ưu tiên đọc từ nhóm st.secrets["ogsm"] nếu có
+        if "ogsm" in st.secrets:
+            secrets = st.secrets["ogsm"]
+        else:
+            secrets = st.secrets
 
         if "azure" not in secrets or "onedrive" not in secrets:
-            raise KeyError("Cấu hình trong Streamlit Secrets thiếu mục [azure] hoặc [onedrive].")
+            raise KeyError("Cấu hình trong Streamlit Secrets thiếu mục [azure] hoặc [onedrive] bên trong nhóm [ogsm].")
 
         azure_data = secrets["azure"]
         onedrive_data = secrets["onedrive"]
