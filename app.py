@@ -20,21 +20,20 @@ import firebase_admin
 from firebase_admin import credentials, db
 
 # ================= 1. CẤU HÌNH GIAO DIỆN & STYLE =================
-st.set_page_config(page_title="HỆ THỐNG ĐIỂM DANH UMP", layout="wide")
+st.set_page_config(
+    page_title="HỆ THỐNG QUẢN LÝ UMP", 
+    page_icon="🏫",
+    layout="wide",
+    initial_sidebar_state="expanded" # Ép hiện thanh Menu Sidebar chứa các App con
+)
 
 st.markdown("""
 <style>
-    /* ẨN TRIỆT ĐỂ 100% CÁC NÚT QUẢN TRỊ, BADGE VÀ TOOLBAR CỦA STREAMLIT CLOUD */
+    /* Ẩn bớt footer và các nút Deploy dư thừa, GIỮ LẠI Header để hiện Menu Sidebar */
     #MainMenu {visibility: hidden !important;}
     footer {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    
-    /* Ẩn các nút Toolbar, Viewer Badge, Status Widget & Action Buttons */
     .stAppDeployButton {display: none !important;}
     [data-testid="stStatusWidget"] {display: none !important;}
-    [data-testid="stToolbar"] {display: none !important;}
-    [data-testid="stDecoration"] {display: none !important;}
-    [data-testid="stHeader"] {display: none !important;}
     
     /* Ẩn các vương miện / lá cờ / badge đè ở góc dưới bên phải */
     div[class*="viewerBadge"] {display: none !important;}
