@@ -1,18 +1,19 @@
-
 """
 OGSM Portal Main Application Router.
 Uses st.navigation for explicit sidebar menu routing.
 """
 
 import sys
+import os
 from pathlib import Path
+import streamlit as st
 
-# Nạp đường dẫn thư mục gốc
-ROOT_DIR = Path(__file__).resolve().parent
+# Thêm thư mục gốc của project vào sys.path để import các module (config, logger,...)
+ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-import streamlit as st
+# Import các thư viện nội bộ
 from config import load_config
 from logger import get_logger
 
