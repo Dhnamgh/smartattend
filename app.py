@@ -19,45 +19,65 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ================= 2. CSS TẠO THANH MENU NGANG MÀU XANH FACEBOOK =================
+# =============================== 2. CSS TẠO THANH MENU NGANG MÀU XANH FACEBOOK ===============================
 st.markdown("""
 <style>
-    /* Ẩn Sidebar mặc định của Streamlit */
+    /* 1. Triệt tiêu vạch màu xanh trang trí trên cùng của Streamlit */
+    div[data-testid="stDecoration"] { 
+        display: none !important; 
+    }
+    
+    /* 2. Ẩn Header, Footer & Sidebar mặc định */
     [data-testid="stSidebar"] { display: none !important; }
     [data-testid="stSidebarNav"] { display: none !important; }
-    
-    /* Ẩn Header & Footer mặc định */
     #MainMenu { visibility: hidden !important; }
     footer { visibility: hidden !important; }
-    header { visibility: hidden !important; }
+    header { display: none !important; }
     .stAppDeployButton { display: none !important; }
     [data-testid="stStatusWidget"] { display: none !important; }
 
-    /* Container cho Thanh Menu Ngang màu xanh Facebook */
+    /* 3. ĐẨY NỘI DUNG LÊN SÁT MÉP TRÊN (Xóa khoảng trắng thừa) */
+    .block-container {
+        padding-top: 0.5rem !important;
+        padding-bottom: 1rem !important;
+    }
+
+    /* 4. TỐI ƯU CỰC GỌN CHO MÀN HÌNH ĐIỆN THOẠI */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 0.2rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+        }
+        
+        /* Giảm lề thanh Menu ngang trên di động */
+        .navbar-container {
+            padding: 6px 10px !important;
+            margin-bottom: 10px !important;
+        }
+        
+        /* Thu nhỏ tiêu đề HÉ THỐNG ĐIỂM DANH UMP trên điện thoại */
+        h1 {
+            font-size: 1.5rem !important;
+            margin-bottom: 0.5rem !important;
+        }
+    }
+
+    /* 5. Container cho Thanh Menu Ngang màu xanh Facebook */
     .navbar-container {
         background-color: #1877F2;
-        padding: 12px 20px;
+        padding: 10px 16px;
         border-radius: 8px;
-        margin-bottom: 25px;
+        margin-bottom: 15px;
         box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
     }
-    
-    /* Style chữ và nút bấm trên thanh Menu */
+
+    /* 6. Style chữ và nút bấm trên thanh Menu */
     div[data-testid="column"] div.stButton > button {
-        background-color: transparent !important;
+        background-color: transparent;
         color: #FFFFFF !important;
-        border: 1px solid rgba(255, 255, 255, 0.4) !important;
-        font-weight: 600 !important;
-        font-size: 15px !important;
-        padding: 8px 16px !important;
-        border-radius: 6px !important;
-        width: 100% !important;
-        transition: all 0.3s ease !important;
-    }
-    
-    div[data-testid="column"] div.stButton > button:hover {
-        background-color: #0D52B5 !important;
-        border-color: #FFFFFF !important;
+        border: none !important;
+        font-weight: 600;
     }
 </style>
 """, unsafe_allow_html=True)
