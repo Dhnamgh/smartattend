@@ -46,7 +46,23 @@ st.markdown("""
         padding-bottom: 1rem !important;
     }
 
-    /* 4. TÔ MÀU XANH FACEBOOK CHO 3 NÚT ĐIỀU HƯỚNG BÊN TRÊN */
+    /* 4. ÉP TẤT CẢ CHỮ (KỂ CẢ Ô KHÓA/CHỈ ĐỌC) HIỂN THỊ ĐẬM VÀ RÕ NÉT 100% */
+    label, p, span, div[data-baseweb="input"], input {
+        color: #262730 !important;
+        opacity: 1 !important;
+        -webkit-text-fill-color: #262730 !important;
+    }
+
+    /* Đảm bảo ô bị disabled (chỉ đọc) vẫn có chữ màu đen đậm rõ ràng */
+    input:disabled, 
+    div[data-baseweb="input"]:has(input:disabled) {
+        background-color: #F0F2F6 !important;
+        color: #262730 !important;
+        -webkit-text-fill-color: #262730 !important;
+        opacity: 1 !important;
+    }
+
+    /* 5. TÔ MÀU XANH FACEBOOK CHO 3 NÚT ĐIỀU HƯỚNG BÊN TRÊN */
     div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button {
         background-color: #1877F2 !important;
         color: #FFFFFF !important;
@@ -60,23 +76,14 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* Hiệu ứng khi rê chuột vào 3 nút (Đổi màu xanh đậm hơn) */
+    /* Hiệu ứng rê chuột */
     div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:hover {
         background-color: #145dbf !important;
         color: #FFFFFF !important;
         transform: translateY(-1px) !important;
-        box-shadow: 0px 5px 10px rgba(0,0,0,0.2) !important;
     }
 
-    /* Hiệu ứng khi bấm/chọn nút */
-    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:active,
-    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:focus {
-        background-color: #0d479a !important;
-        color: #FFFFFF !important;
-        border: none !important;
-    }
-
-    /* 5. Tối ưu khoảng cách lề cho màn hình điện thoại */
+    /* 6. Tối ưu khoảng cách lề trên điện thoại */
     @media (max-width: 768px) {
         .block-container {
             padding-left: 0.4rem !important;
