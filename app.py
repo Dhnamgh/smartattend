@@ -22,62 +22,71 @@ st.set_page_config(
 # =============================== 2. CSS TẠO THANH MENU NGANG MÀU XANH FACEBOOK ===============================
 st.markdown("""
 <style>
-    /* 1. Triệt tiêu vạch màu xanh trang trí trên cùng của Streamlit */
-    div[data-testid="stDecoration"] { 
+    /* 1. Triệt tiêu vạch trang trí và Header mặc định của Streamlit */
+    div[data-testid="stDecoration"], 
+    header, 
+    [data-testid="stHeader"] { 
         display: none !important; 
+        height: 0 !important;
     }
     
-    /* 2. Ẩn Header, Footer & Sidebar mặc định */
-    [data-testid="stSidebar"] { display: none !important; }
-    [data-testid="stSidebarNav"] { display: none !important; }
-    #MainMenu { visibility: hidden !important; }
-    footer { visibility: hidden !important; }
-    header { display: none !important; }
-    .stAppDeployButton { display: none !important; }
-    [data-testid="stStatusWidget"] { display: none !important; }
+    /* 2. Ẩn Sidebar mặc định */
+    [data-testid="stSidebar"], 
+    [data-testid="stSidebarNav"], 
+    #MainMenu, 
+    footer, 
+    .stAppDeployButton, 
+    [data-testid="stStatusWidget"] { 
+        display: none !important; 
+    }
 
-    /* 3. ĐẨY NỘI DUNG LÊN SÁT MÉP TRÊN (Xóa khoảng trắng thừa) */
+    /* 3. Thu gọn khoảng trắng thừa phía trên cùng */
     .block-container {
         padding-top: 0.5rem !important;
         padding-bottom: 1rem !important;
     }
 
-    /* 4. TỐI ƯU CỰC GỌN CHO MÀN HÌNH ĐIỆN THOẠI */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-top: 0.2rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-        }
-        
-        /* Giảm lề thanh Menu ngang trên di động */
-        .navbar-container {
-            padding: 6px 10px !important;
-            margin-bottom: 10px !important;
-        }
-        
-        /* Thu nhỏ tiêu đề HÉ THỐNG ĐIỂM DANH UMP trên điện thoại */
-        h1 {
-            font-size: 1.5rem !important;
-            margin-bottom: 0.5rem !important;
-        }
-    }
-
-    /* 5. Container cho Thanh Menu Ngang màu xanh Facebook */
-    .navbar-container {
-        background-color: #1877F2;
-        padding: 10px 16px;
-        border-radius: 8px;
-        margin-bottom: 15px;
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
-    }
-
-    /* 6. Style chữ và nút bấm trên thanh Menu */
-    div[data-testid="column"] div.stButton > button {
-        background-color: transparent;
+    /* 4. TÔ MÀU XANH FACEBOOK CHO 3 NÚT ĐIỀU HƯỚNG BÊN TRÊN */
+    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button {
+        background-color: #1877F2 !important;
         color: #FFFFFF !important;
         border: none !important;
-        font-weight: 600;
+        border-radius: 8px !important;
+        padding: 10px 16px !important;
+        font-weight: 600 !important;
+        font-size: 15px !important;
+        box-shadow: 0px 3px 6px rgba(0,0,0,0.12) !important;
+        transition: all 0.2s ease-in-out !important;
+        width: 100% !important;
+    }
+
+    /* Hiệu ứng khi rê chuột vào 3 nút (Đổi màu xanh đậm hơn) */
+    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:hover {
+        background-color: #145dbf !important;
+        color: #FFFFFF !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0px 5px 10px rgba(0,0,0,0.2) !important;
+    }
+
+    /* Hiệu ứng khi bấm/chọn nút */
+    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:active,
+    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:focus {
+        background-color: #0d479a !important;
+        color: #FFFFFF !important;
+        border: none !important;
+    }
+
+    /* 5. Tối ưu khoảng cách lề cho màn hình điện thoại */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.4rem !important;
+            padding-right: 0.4rem !important;
+            padding-top: 0.2rem !important;
+        }
+        div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button {
+            padding: 8px 6px !important;
+            font-size: 13px !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
