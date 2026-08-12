@@ -22,7 +22,7 @@ st.set_page_config(
 # =============================== 2. CSS TẠO THANH MENU NGANG MÀU XANH FACEBOOK ===============================
 st.markdown("""
 <style>
-    /* 1. Triệt tiêu vạch trang trí và Header mặc định của Streamlit */
+    /* 1. Triệt tiêu vạch trang trí và Header mặc định */
     div[data-testid="stDecoration"], 
     header, 
     [data-testid="stHeader"] { 
@@ -30,30 +30,42 @@ st.markdown("""
         height: 0 !important;
     }
     
-    /* 2. Ẩn Sidebar mặc định */
+    /* 2. Ẩn Sidebar, Menu và các Widget mặc định */
     [data-testid="stSidebar"], 
     [data-testid="stSidebarNav"], 
     #MainMenu, 
-    footer, 
     .stAppDeployButton, 
     [data-testid="stStatusWidget"] { 
         display: none !important; 
     }
 
-    /* 3. Thu gọn khoảng trắng thừa phía trên cùng */
-    .block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 1rem !important;
+    /* 3. ĐẶC TRỊ: XÓA TIỆN BỎ HUY HIỆU "HOSTED WITH STREAMLIT" VÀ LOGO NỔI Ở CHÂN TRANG */
+    footer, 
+    div[data-testid="stFooter"], 
+    [data-testid="stViewerBadge"], 
+    .stAppViewerBadge, 
+    div[class*="viewerBadge"],
+    div[class*="stActionButton"],
+    div[data-testid="stToolbar"] { 
+        display: none !important; 
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
     }
 
-    /* 4. ÉP TẤT CẢ CHỮ (KỂ CẢ Ô KHÓA/CHỈ ĐỌC) HIỂN THỊ ĐẬM VÀ RÕ NÉT 100% */
+    /* 4. TẠO KHOẢNG TRỐNG CHÂN TRANG ĐỂ NÚT XÁC NHẬN KHÔNG BỊ CHỜM VÀO MÉP ĐIỆN THOẠI */
+    .block-container {
+        padding-top: 0.5rem !important;
+        padding-bottom: 7rem !important; /* Đẩy nội dung đáy lên cao hơn thanh điều hướng di động */
+    }
+
+    /* 5. ÉP CHỮ CÁC Ô HIỂN THỊ RÕ NÉT */
     label, p, span, div[data-baseweb="input"], input {
         color: #262730 !important;
         opacity: 1 !important;
         -webkit-text-fill-color: #262730 !important;
     }
 
-    /* Đảm bảo ô bị disabled (chỉ đọc) vẫn có chữ màu đen đậm rõ ràng */
     input:disabled, 
     div[data-baseweb="input"]:has(input:disabled) {
         background-color: #F0F2F6 !important;
@@ -62,7 +74,7 @@ st.markdown("""
         opacity: 1 !important;
     }
 
-    /* 5. TÔ MÀU XANH FACEBOOK CHO 3 NÚT ĐIỀU HƯỚNG BÊN TRÊN */
+    /* 6. TÔ MÀU XANH FACEBOOK CHO 3 NÚT ĐIỀU HƯỚNG */
     div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button {
         background-color: #1877F2 !important;
         color: #FFFFFF !important;
@@ -76,19 +88,18 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* Hiệu ứng rê chuột */
     div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:hover {
         background-color: #145dbf !important;
         color: #FFFFFF !important;
-        transform: translateY(-1px) !important;
     }
 
-    /* 6. Tối ưu khoảng cách lề trên điện thoại */
+    /* 7. TỐI ƯU LỀ VÀ NÚT BẤM CHO MÀN HÌNH ĐIỆN THOẠI */
     @media (max-width: 768px) {
         .block-container {
-            padding-left: 0.4rem !important;
-            padding-right: 0.4rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
             padding-top: 0.2rem !important;
+            padding-bottom: 8rem !important; /* Dành riêng space lề đáy đủ rộng cho điện thoại */
         }
         div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button {
             padding: 8px 6px !important;
