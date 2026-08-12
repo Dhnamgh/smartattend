@@ -19,19 +19,39 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Đổi tên hiển thị của trang chính (app.py) trên Sidebar thành Tiếng Việt
+# Đổi tên hiển thị của cả 3 trang trên Sidebar thành Tiếng Việt
 st.sidebar.markdown("""
-    <style>
-        /* Đổi chữ 'app' trên menu bên trái thành 'Điểm danh UMP' */
-        [data-testid="stSidebarNav"] ul li:first-child span {
-            font-size: 0 !important;
-        }
-        [data-testid="stSidebarNav"] ul li:first-child span::after {
-            content: "📍 Điểm danh UMP" !important;
-            font-size: 14px !important;
-            font-weight: 500;
-        }
-    </style>
+<style>
+    /* 1. Đổi chữ 'app' thành '📍 Điểm danh UMP' */
+    [data-testid="stSidebarNav"] ul li:nth-child(1) span { 
+        font-size: 0 !important; 
+    }
+    [data-testid="stSidebarNav"] ul li:nth-child(1) span::after {
+        content: "📍 Điểm danh UMP" !important;
+        font-size: 14px !important;
+        font-weight: 500;
+    }
+
+    /* 2. Đổi chữ 'event' thành '📅 Sự kiện & Event' */
+    [data-testid="stSidebarNav"] ul li:nth-child(2) span { 
+        font-size: 0 !important; 
+    }
+    [data-testid="stSidebarNav"] ul li:nth-child(2) span::after {
+        content: "📅 Sự kiện & Event" !important;
+        font-size: 14px !important;
+        font-weight: 500;
+    }
+
+    /* 3. Đổi chữ 'ogsm' thành '🎯 Quản trị OGSM' */
+    [data-testid="stSidebarNav"] ul li:nth-child(3) span { 
+        font-size: 0 !important; 
+    }
+    [data-testid="stSidebarNav"] ul li:nth-child(3) span::after {
+        content: "🎯 Quản trị OGSM" !important;
+        font-size: 14px !important;
+        font-weight: 500;
+    }
+</style>
 """, unsafe_allow_html=True)
 
 # =============================== 2. CSS TẠO THANH MENU NGANG MÀU XANH FACEBOOK ===============================
