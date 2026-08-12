@@ -39,19 +39,22 @@ class AppConfig(BaseModel):
 @st.cache_resource
 def load_config() -> AppConfig:
     """
-    Loads and validates application settings directly from st.secrets without fallbacks.
+    Loads and validates application settings directly from st.secrets.
+    Flexibly supports [azure_ogsm]/[azure] and [onedrive_ogsm]/[onedrive].
     """
     try:
         secrets = st.secrets
 
-        # Tự động nhận diện cả [azure_ogsm] lẫn [azure]
+        # Tự động đọc [azure_ogsm] hoặc [azure]
         azure_data = secrets.get("azure_ogsm") or secrets.get("azure")
         
-        # Tự động nhận diện cả [onedrive_ogsm] lẫn [onedrive]
+        # Tự động đọc [onedrive_ogsm] hoặc [onedrive]
         onedrive_data = secrets.get("onedrive_ogsm") or secrets.get("onedrive")
 
-        if not azure_data or not onedrive_data:
-            raise KeyError("Cấu hình trong Streamlit Secrets thiếu mục [azure_ogsm] hoặc [onedrive_ogsm].")
+        if not azure_data:
+            raise KeyError("Cấu hình Secrets thiếu mục [azure_ogsm] hoặc [azure].")
+        if not onedrive_data:
+            raise KeyError("Cấu hình Secrets thiếu mục [onedrive_ogsm] hoặc [onedrive].")
 
         config = AppConfig(
             azure=AzureSettings(
