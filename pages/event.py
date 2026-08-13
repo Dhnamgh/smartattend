@@ -169,7 +169,7 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 # ==============================================================================
-# 3. KẾT NỐI ONEDRIVE TỰ ĐỘNG DÒ TỆP EXCEL TRONG OGSM/EVENT
+# 3. KẾT NỐI ONEDRIVE CỐ ĐỊNH ĐƯỜNG DẪN GỐC /OGSM/EVENT/Danh_sach_su_kien.xlsx
 # ==============================================================================
 def get_azure_token():
     azure_cfg = st.secrets["azure_ogsm"]
@@ -181,43 +181,22 @@ def get_azure_token():
     res = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
     return res.get("access_token")
 
-def get_event_file_id():
-    """Tự động tìm tệp Excel (.xlsx) chính chủ trong thư mục OGSM/EVENT"""
-    token = get_azure_token()
+def get_onedrive_file_url():
     onedrive_cfg = st.secrets["onedrive_ogsm"]
     drive_id = onedrive_cfg["drive_id"]
-    ogsm_id = onedrive_cfg["ogsm_folder_id"]
-    
-    url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{ogsm_id}:/EVENT:/children"
-    headers = {"Authorization": f"Bearer {token}"}
-    res = requests.get(url, headers=headers)
-    
-    if res.status_code == 200:
-        items = res.json().get("value", [])
-        for item in items:
-            name = item.get("name", "")
-            if name.endswith(".xlsx") and not name.startswith("~$"):
-                return item.get("id"), name
-    return None, None
+    # ĐỊA CHỈ GỐC DUY NHẤT THEO YÊU CẦU
+    return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/OGSM/EVENT/Danh_sach_su_kien.xlsx:/content"
 
 def read_onedrive_excel() -> pd.DataFrame:
     try:
         token = get_azure_token()
-        onedrive_cfg = st.secrets["onedrive_ogsm"]
-        drive_id = onedrive_cfg["drive_id"]
-        
-        file_id, file_name = get_event_file_id()
-        if not file_id:
-            st.error("❌ Không tìm thấy tệp Excel (.xlsx) nào trong thư mục OGSM/EVENT trên OneDrive!")
-            return pd.DataFrame()
-            
-        url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}/content"
+        url = get_onedrive_file_url()
         headers = {"Authorization": f"Bearer {token}"}
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
             return pd.read_excel(BytesIO(res.content))
         else:
-            st.error(f"❌ Lỗi đọc file OneDrive ({res.status_code}): {res.text}")
+            st.error(f"❌ Không tìm thấy file '/OGSM/EVENT/Danh_sach_su_kien.xlsx' trên OneDrive (Mã lỗi {res.status_code}): {res.text}")
             return pd.DataFrame()
     except Exception as e:
         st.error(f"❌ Lỗi kết nối OneDrive: {e}")
@@ -226,15 +205,7 @@ def read_onedrive_excel() -> pd.DataFrame:
 def save_onedrive_excel(df: pd.DataFrame) -> bool:
     try:
         token = get_azure_token()
-        onedrive_cfg = st.secrets["onedrive_ogsm"]
-        drive_id = onedrive_cfg["drive_id"]
-        
-        file_id, file_name = get_event_file_id()
-        if not file_id:
-            st.error("❌ Không tìm thấy tệp Excel (.xlsx) trong thư mục OGSM/EVENT để ghi đè!")
-            return False
-            
-        url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}/content"
+        url = get_onedrive_file_url()
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
@@ -247,7 +218,7 @@ def save_onedrive_excel(df: pd.DataFrame) -> bool:
             st.cache_data.clear()
             return True
         else:
-            st.error(f"❌ Lỗi ghi file OneDrive ({res.status_code}): {res.text}")
+            st.error(f"❌ Lỗi ghi đè file OneDrive ({res.status_code}): {res.text}")
             return False
     except Exception as e:
         st.error(f"❌ Lỗi xử lý ghi file: {e}")
@@ -504,7 +475,7 @@ elif menu == "Đăng ký":
                 df_excel = read_onedrive_excel()
                 
                 if df_excel.empty:
-                    st.error("Không thể kết nối đọc file Excel từ OneDrive!")
+                    st.error("Không thể kết nối đọc file 'Danh_sach_su_kien.xlsx' từ OneDrive!")
                 else:
                     next_id = 1
                     if "Id" in df_excel.columns:
@@ -531,7 +502,7 @@ elif menu == "Đăng ký":
 
                     updated_df = pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)
                     if save_onedrive_excel(updated_df):
-                        st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện (ID: {next_id}) và thêm vào file Excel!"
+                        st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện ID {next_id} vào file Excel!"
                         st.rerun()
 
 # --- BÁO CÁO ---
@@ -652,7 +623,6 @@ elif menu == "Phê duyệt":
 
                         approval_text = opinion if not reason else f"{opinion}: {reason}"
                         
-                        # So sánh Id thông minh
                         mask = (df_excel["Id"].astype(str).str.strip().str.replace(".0", "", regex=False) == item_id) | (pd.to_numeric(df_excel["Id"], errors="coerce") == pd.to_numeric(item_id, errors="coerce"))
                         
                         if mask.any():
