@@ -169,7 +169,7 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 # ==============================================================================
-# 3. KẾT NỐI ONEDRIVE (CHUẨN HOÁ FILE DANH_SACH_SU_KIEN.XLSX)
+# 3. KẾT NỐI ONEDRIVE TỰ ĐỘNG DÒ TỆP EXCEL TRONG OGSM/EVENT
 # ==============================================================================
 def get_azure_token():
     azure_cfg = st.secrets["azure_ogsm"]
@@ -181,18 +181,37 @@ def get_azure_token():
     res = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
     return res.get("access_token")
 
-def get_onedrive_file_url():
+def get_event_file_id():
+    """Tự động tìm tệp Excel (.xlsx) chính chủ trong thư mục OGSM/EVENT"""
+    token = get_azure_token()
     onedrive_cfg = st.secrets["onedrive_ogsm"]
     drive_id = onedrive_cfg["drive_id"]
     ogsm_id = onedrive_cfg["ogsm_folder_id"]
-    # Đổi tên file gọn gàng, tránh sai khoảng trắng
-    file_name = "Danh_sach_su_kien.xlsx"
-    return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{ogsm_id}:/EVENT/{file_name}:/content"
+    
+    url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{ogsm_id}:/EVENT:/children"
+    headers = {"Authorization": f"Bearer {token}"}
+    res = requests.get(url, headers=headers)
+    
+    if res.status_code == 200:
+        items = res.json().get("value", [])
+        for item in items:
+            name = item.get("name", "")
+            if name.endswith(".xlsx") and not name.startswith("~$"):
+                return item.get("id"), name
+    return None, None
 
 def read_onedrive_excel() -> pd.DataFrame:
     try:
         token = get_azure_token()
-        url = get_onedrive_file_url()
+        onedrive_cfg = st.secrets["onedrive_ogsm"]
+        drive_id = onedrive_cfg["drive_id"]
+        
+        file_id, file_name = get_event_file_id()
+        if not file_id:
+            st.error("❌ Không tìm thấy tệp Excel (.xlsx) nào trong thư mục OGSM/EVENT trên OneDrive!")
+            return pd.DataFrame()
+            
+        url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}/content"
         headers = {"Authorization": f"Bearer {token}"}
         res = requests.get(url, headers=headers)
         if res.status_code == 200:
@@ -207,7 +226,15 @@ def read_onedrive_excel() -> pd.DataFrame:
 def save_onedrive_excel(df: pd.DataFrame) -> bool:
     try:
         token = get_azure_token()
-        url = get_onedrive_file_url()
+        onedrive_cfg = st.secrets["onedrive_ogsm"]
+        drive_id = onedrive_cfg["drive_id"]
+        
+        file_id, file_name = get_event_file_id()
+        if not file_id:
+            st.error("❌ Không tìm thấy tệp Excel (.xlsx) trong thư mục OGSM/EVENT để ghi đè!")
+            return False
+            
+        url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}/content"
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
@@ -339,7 +366,7 @@ def build_support_table(df_input):
                 "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
                 "Ngày giờ": r.get("start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("start")) else "",
                 "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": "Có yêu cầu hỗ trợ",
-                "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get("support", ""))
+                "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get(col, ""))
             })
     return pd.DataFrame(rows)
 
@@ -435,7 +462,7 @@ if menu == "Dashboard":
     c2.metric("Tháng", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- ĐĂNG KÝ (NỐI THẲNG DÒNG MỚI VÀO CỦA FILE EXCEL ONEDRIVE) ---
+# --- ĐĂNG KÝ ---
 elif menu == "Đăng ký":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📝 Đăng ký sự kiện</div>', unsafe_allow_html=True)
@@ -473,11 +500,11 @@ elif menu == "Đăng ký":
         if not event_name or not donvi or not location:
             st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
         else:
-            with st.spinner("Đang lưu sự kiện vào hàng cuối cùng của file Excel trên OneDrive..."):
+            with st.spinner("Đang lưu sự kiện trực tiếp vào file Excel trên OneDrive..."):
                 df_excel = read_onedrive_excel()
                 
                 if df_excel.empty:
-                    st.error("Không thể đọc file Excel gốc từ OneDrive!")
+                    st.error("Không thể kết nối đọc file Excel từ OneDrive!")
                 else:
                     next_id = 1
                     if "Id" in df_excel.columns:
@@ -502,7 +529,6 @@ elif menu == "Đăng ký":
                     new_row["Thông tin người phụ trách"] = nguoi_phu_trach
                     new_row["Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp"] = support_flag
 
-                    # Nối dòng mới vào đít bảng Excel hiện tại
                     updated_df = pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)
                     if save_onedrive_excel(updated_df):
                         st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện (ID: {next_id}) và thêm vào file Excel!"
@@ -577,7 +603,7 @@ elif menu == "Truy vấn AI":
             show_table_with_download("Danh sách cần hỗ trợ", collapse_repeated_support_rows(supp_df), "can_ho_tro.xlsx")
         else: st.warning("Hãy nhập từ khóa: tuần, tháng, năm hoặc hỗ trợ")
 
-# --- PHÊ DUYỆT (CẬP NHẬT DÒNG ID ĐÓ TRONG FILE EXCEL ONEDRIVE) ---
+# --- PHÊ DUYỆT ---
 elif menu == "Phê duyệt":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📋 Phê duyệt sự kiện</div>', unsafe_allow_html=True)
@@ -626,7 +652,7 @@ elif menu == "Phê duyệt":
 
                         approval_text = opinion if not reason else f"{opinion}: {reason}"
                         
-                        # So sánh Id linh hoạt (kiểu số & chuỗi)
+                        # So sánh Id thông minh
                         mask = (df_excel["Id"].astype(str).str.strip().str.replace(".0", "", regex=False) == item_id) | (pd.to_numeric(df_excel["Id"], errors="coerce") == pd.to_numeric(item_id, errors="coerce"))
                         
                         if mask.any():
