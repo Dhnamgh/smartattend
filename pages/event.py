@@ -169,7 +169,7 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 # ==============================================================================
-# 3. KẾT NỐI ONEDRIVE (CHUẨN HOÁ TÊN FILE VÀ BÁO LỖI)
+# 3. KẾT NỐI ONEDRIVE (CHUẨN HOÁ FILE DANH_SACH_SU_KIEN.XLSX)
 # ==============================================================================
 def get_azure_token():
     azure_cfg = st.secrets["azure_ogsm"]
@@ -185,8 +185,8 @@ def get_onedrive_file_url():
     onedrive_cfg = st.secrets["onedrive_ogsm"]
     drive_id = onedrive_cfg["drive_id"]
     ogsm_id = onedrive_cfg["ogsm_folder_id"]
-    # Tên file chuẩn 1 khoảng trắng khớp đúng OneDrive
-    file_name = "QUẢN LÝ TỔNG HỢP SỰ KIỆN UMP (sample).xlsx"
+    # Đổi tên file gọn gàng, tránh sai khoảng trắng
+    file_name = "Danh_sach_su_kien.xlsx"
     return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{ogsm_id}:/EVENT/{file_name}:/content"
 
 def read_onedrive_excel() -> pd.DataFrame:
@@ -269,7 +269,7 @@ def process_raw_dataframe(df_raw):
         df[col] = df[col].apply(clean_text)
     return df
 
-@st.cache_data(ttl=30)
+@st.cache_data(ttl=15)
 def load_data():
     return process_raw_dataframe(read_onedrive_excel())
 
@@ -435,11 +435,14 @@ if menu == "Dashboard":
     c2.metric("Tháng", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- ĐĂNG KÝ ---
+# --- ĐĂNG KÝ (NỐI THẲNG DÒNG MỚI VÀO CỦA FILE EXCEL ONEDRIVE) ---
 elif menu == "Đăng ký":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📝 Đăng ký sự kiện</div>', unsafe_allow_html=True)
     
+    if "approval_msg" in st.session_state:
+        st.success(st.session_state.pop("approval_msg"))
+
     dc1, dc2 = st.columns(2)
     with dc1:
         start_date = st.date_input("Ngày tổ chức", key="reg_start_date")
@@ -470,11 +473,11 @@ elif menu == "Đăng ký":
         if not event_name or not donvi or not location:
             st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
         else:
-            with st.spinner("Đang lưu sự kiện vào file Excel trên OneDrive..."):
+            with st.spinner("Đang lưu sự kiện vào hàng cuối cùng của file Excel trên OneDrive..."):
                 df_excel = read_onedrive_excel()
                 
                 if df_excel.empty:
-                    st.error("Không thể kết nối đọc file Excel từ OneDrive!")
+                    st.error("Không thể đọc file Excel gốc từ OneDrive!")
                 else:
                     next_id = 1
                     if "Id" in df_excel.columns:
@@ -499,9 +502,10 @@ elif menu == "Đăng ký":
                     new_row["Thông tin người phụ trách"] = nguoi_phu_trach
                     new_row["Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp"] = support_flag
 
+                    # Nối dòng mới vào đít bảng Excel hiện tại
                     updated_df = pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)
                     if save_onedrive_excel(updated_df):
-                        st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện (ID: {next_id})!"
+                        st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện (ID: {next_id}) và thêm vào file Excel!"
                         st.rerun()
 
 # --- BÁO CÁO ---
@@ -573,12 +577,11 @@ elif menu == "Truy vấn AI":
             show_table_with_download("Danh sách cần hỗ trợ", collapse_repeated_support_rows(supp_df), "can_ho_tro.xlsx")
         else: st.warning("Hãy nhập từ khóa: tuần, tháng, năm hoặc hỗ trợ")
 
-# --- PHÊ DUYỆT (HIỂN THỊ THÔNG BÁO CHUẨN KHI RERUN) ---
+# --- PHÊ DUYỆT (CẬP NHẬT DÒNG ID ĐÓ TRONG FILE EXCEL ONEDRIVE) ---
 elif menu == "Phê duyệt":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📋 Phê duyệt sự kiện</div>', unsafe_allow_html=True)
     
-    # Hiển thị thông báo lưu thành công sau khi trang reload
     if "approval_msg" in st.session_state:
         st.success(st.session_state.pop("approval_msg"))
 
@@ -623,7 +626,7 @@ elif menu == "Phê duyệt":
 
                         approval_text = opinion if not reason else f"{opinion}: {reason}"
                         
-                        # So sánh Id thông minh (xử lý cả kiểu Số và Chuỗi)
+                        # So sánh Id linh hoạt (kiểu số & chuỗi)
                         mask = (df_excel["Id"].astype(str).str.strip().str.replace(".0", "", regex=False) == item_id) | (pd.to_numeric(df_excel["Id"], errors="coerce") == pd.to_numeric(item_id, errors="coerce"))
                         
                         if mask.any():
