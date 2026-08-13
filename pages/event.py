@@ -169,7 +169,7 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 # ==============================================================================
-# 3. KẾT NỐI & ĐỌC / GHI TRỰC TIẾP ONEDRIVE (DÙNG CHUNG CẤU HÌNH AZURE OGSM)
+# 3. KẾT NỐI ONEDRIVE (CHUẨN HOÁ TÊN FILE VÀ BÁO LỖI)
 # ==============================================================================
 def get_azure_token():
     azure_cfg = st.secrets["azure_ogsm"]
@@ -185,11 +185,11 @@ def get_onedrive_file_url():
     onedrive_cfg = st.secrets["onedrive_ogsm"]
     drive_id = onedrive_cfg["drive_id"]
     ogsm_id = onedrive_cfg["ogsm_folder_id"]
-    file_name = "QUẢN LÝ TỔNG HỢP  SỰ KIỆN UMP (sample).xlsx"
+    # Tên file chuẩn 1 khoảng trắng khớp đúng OneDrive
+    file_name = "QUẢN LÝ TỔNG HỢP SỰ KIỆN UMP (sample).xlsx"
     return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{ogsm_id}:/EVENT/{file_name}:/content"
 
 def read_onedrive_excel() -> pd.DataFrame:
-    """Đọc trực tiếp file Excel từ thư mục OGSM/EVENT trên OneDrive"""
     try:
         token = get_azure_token()
         url = get_onedrive_file_url()
@@ -198,14 +198,13 @@ def read_onedrive_excel() -> pd.DataFrame:
         if res.status_code == 200:
             return pd.read_excel(BytesIO(res.content))
         else:
-            st.error(f"❌ Không thể đọc file OneDrive (Mã lỗi {res.status_code}): {res.text}")
+            st.error(f"❌ Lỗi đọc file OneDrive ({res.status_code}): {res.text}")
             return pd.DataFrame()
     except Exception as e:
         st.error(f"❌ Lỗi kết nối OneDrive: {e}")
         return pd.DataFrame()
 
 def save_onedrive_excel(df: pd.DataFrame) -> bool:
-    """Ghi đè toàn bộ DataFrame cập nhật lên OneDrive"""
     try:
         token = get_azure_token()
         url = get_onedrive_file_url()
@@ -221,10 +220,10 @@ def save_onedrive_excel(df: pd.DataFrame) -> bool:
             st.cache_data.clear()
             return True
         else:
-            st.error(f"❌ Lỗi lưu file lên OneDrive (Mã lỗi {res.status_code}): {res.text}")
+            st.error(f"❌ Lỗi ghi file OneDrive ({res.status_code}): {res.text}")
             return False
     except Exception as e:
-        st.error(f"❌ Lỗi ghi dữ liệu OneDrive: {e}")
+        st.error(f"❌ Lỗi xử lý ghi file: {e}")
         return False
 
 def parse_event_date(value):
@@ -233,8 +232,7 @@ def parse_event_date(value):
     return dt if pd.notna(dt) else pd.to_datetime(str(value).strip(), errors="coerce", dayfirst=True)
 
 def process_raw_dataframe(df_raw):
-    if df_raw.empty:
-        return df_raw
+    if df_raw.empty: return df_raw
     df = df_raw.copy()
     df.columns = df.columns.astype(str).str.strip()
     df = df.rename(columns={
@@ -437,7 +435,7 @@ if menu == "Dashboard":
     c2.metric("Tháng", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- ĐĂNG KÝ (GHI TRỰC TIẾP LÊN ONEDRIVE) ---
+# --- ĐĂNG KÝ ---
 elif menu == "Đăng ký":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📝 Đăng ký sự kiện</div>', unsafe_allow_html=True)
@@ -472,25 +470,20 @@ elif menu == "Đăng ký":
         if not event_name or not donvi or not location:
             st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
         else:
-            with st.spinner("Đang lưu sự kiện trực tiếp vào file Excel trên OneDrive..."):
+            with st.spinner("Đang lưu sự kiện vào file Excel trên OneDrive..."):
                 df_excel = read_onedrive_excel()
                 
                 if df_excel.empty:
-                    st.error("Không thể đọc file Excel gốc từ OneDrive để ghi thêm dòng mới!")
+                    st.error("Không thể kết nối đọc file Excel từ OneDrive!")
                 else:
-                    # Tự động tính Id tiếp theo
                     next_id = 1
                     if "Id" in df_excel.columns:
                         valid_ids = pd.to_numeric(df_excel["Id"], errors="coerce").dropna()
-                        if not valid_ids.empty:
-                            next_id = int(valid_ids.max() + 1)
+                        if not valid_ids.empty: next_id = int(valid_ids.max() + 1)
 
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # Tạo dictionary khớp toàn bộ các cột file mẫu
                     new_row = {col: None for col in df_excel.columns}
                     
-                    # Điền giá trị vào các cột chính
                     new_row["Id"] = next_id
                     new_row["Thời gian bắt đầu"] = now_str
                     new_row["Thời gian hoàn thành"] = ""
@@ -508,8 +501,8 @@ elif menu == "Đăng ký":
 
                     updated_df = pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)
                     if save_onedrive_excel(updated_df):
-                        st.success(f"🎉 Đã lưu thành công sự kiện (ID: {next_id}) trực tiếp vào OneDrive!")
-                        st.cache_data.clear()
+                        st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện (ID: {next_id})!"
+                        st.rerun()
 
 # --- BÁO CÁO ---
 elif menu == "Báo cáo":
@@ -580,11 +573,15 @@ elif menu == "Truy vấn AI":
             show_table_with_download("Danh sách cần hỗ trợ", collapse_repeated_support_rows(supp_df), "can_ho_tro.xlsx")
         else: st.warning("Hãy nhập từ khóa: tuần, tháng, năm hoặc hỗ trợ")
 
-# --- PHÊ DUYỆT (CẬP NHẬT TRỰC TIẾP LÊN ONEDRIVE) ---
+# --- PHÊ DUYỆT (HIỂN THỊ THÔNG BÁO CHUẨN KHI RERUN) ---
 elif menu == "Phê duyệt":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📋 Phê duyệt sự kiện</div>', unsafe_allow_html=True)
     
+    # Hiển thị thông báo lưu thành công sau khi trang reload
+    if "approval_msg" in st.session_state:
+        st.success(st.session_state.pop("approval_msg"))
+
     if st.button("🔄 Làm mới dữ liệu OneDrive"):
         st.cache_data.clear()
         st.rerun()
@@ -612,9 +609,9 @@ elif menu == "Phê duyệt":
             if st.button("Cập nhật phê duyệt"):
                 item_id = str(selected_row.get("item_id", "")).strip()
                 if not item_id:
-                    st.error("Sự kiện này chưa có Id trong file Excel!")
+                    st.error("Sự kiện này chưa có ID hợp lệ trong file Excel!")
                 else:
-                    with st.spinner("Đang cập nhật trạng thái phê duyệt lên OneDrive..."):
+                    with st.spinner("Đang cập nhật kết quả phê duyệt lên OneDrive..."):
                         df_excel = read_onedrive_excel()
                         
                         col_opinion = "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"
@@ -626,17 +623,18 @@ elif menu == "Phê duyệt":
 
                         approval_text = opinion if not reason else f"{opinion}: {reason}"
                         
-                        # Cập nhật đúng dòng có ID
-                        mask = df_excel["Id"].astype(str).str.strip() == item_id
+                        # So sánh Id thông minh (xử lý cả kiểu Số và Chuỗi)
+                        mask = (df_excel["Id"].astype(str).str.strip().str.replace(".0", "", regex=False) == item_id) | (pd.to_numeric(df_excel["Id"], errors="coerce") == pd.to_numeric(item_id, errors="coerce"))
+                        
                         if mask.any():
                             df_excel.loc[mask, col_opinion] = approval_text
                             df_excel.loc[mask, "Thời gian hoàn thành"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             
                             if save_onedrive_excel(df_excel):
-                                st.success(f"🎉 Đã phê duyệt: {opinion} và lưu thành công lên OneDrive!")
+                                st.session_state["approval_msg"] = f"🎉 Đã phê duyệt thành công sự kiện ID {item_id}: '{opinion}'!"
                                 st.rerun()
                         else:
-                            st.error(f"Không tìm thấy Id {item_id} trong file Excel trên OneDrive!")
+                            st.error(f"❌ Không tìm thấy Id {item_id} trong file Excel trên OneDrive!")
 
 # --- LIÊN HỆ ---
 elif menu == "Liên hệ":
