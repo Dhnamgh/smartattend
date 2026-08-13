@@ -471,10 +471,11 @@ elif menu == "Đăng ký":
         if not event_name or not donvi or not location:
             st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
         else:
-            with st.spinner("Đang lưu sự kiện vào file Excel trên OneDrive..."):
+            with st.spinner("Đang lưu sự kiện trực tiếp vào OneDrive..."):
+                # 1. Đọc file Excel từ OneDrive về
                 df_excel = read_onedrive_excel()
                 
-                # Tính Id tự động
+                # 2. Tự động tính Id tiếp theo
                 next_id = 1
                 if not df_excel.empty and "Id" in df_excel.columns:
                     valid_ids = pd.to_numeric(df_excel["Id"], errors="coerce").dropna()
@@ -483,7 +484,7 @@ elif menu == "Đăng ký":
 
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 
-                # Khớp đúng 39 cột từ file mẫu OneDrive
+                # 3. Tạo dòng dữ liệu khớp 39 cột file mẫu
                 new_row = {
                     "Id": next_id,
                     "Thời gian bắt đầu": now_str,
@@ -507,9 +508,11 @@ elif menu == "Đăng ký":
                     "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)": ""
                 }
 
+                # 4. Nối dòng mới và ghi đè lên OneDrive
                 updated_df = pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)
                 if save_onedrive_excel(updated_df):
-                    st.success("🎉 Đã lưu sự kiện thành công trực tiếp vào file Excel trên OneDrive!")
+                    st.success(f"🎉 Đã lưu thành công sự kiện (ID: {next_id}) vào file Excel trên OneDrive!")
+                    st.cache_data.clear()
                     st.rerun()
 
 # --- BÁO CÁO ---
