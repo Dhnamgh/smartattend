@@ -7,132 +7,61 @@ import re
 import hashlib
 import json
 import requests
-import msal  # Thư viện kết nối OneDrive / Azure AD
+import msal
 from io import BytesIO
 from pathlib import Path
 
 st.set_page_config(layout="wide")
 
 # ==============================================================================
-# 1. GIAO DIỆN & CSS (ĐÃ TỐI ƯU & LÀM GỌN)
+# 1. GIAO DIỆN & CSS
 # ==============================================================================
 st.markdown("""
 <style>
-/* ===== Sidebar menu buttons ===== */
-section[data-testid="stSidebar"] div[role="radiogroup"] {
-    gap: 8px !important;
-}
-
+section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 8px !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
-    width: 170px !important;
-    min-width: 170px !important;
-    max-width: 170px !important;
-    min-height: 42px !important;
-    background: #0f5c99 !important;
-    border-radius: 8px !important;
-    padding: 10px 14px !important;
-    margin: 5px 0 !important;
-    border: 1px solid #0b4a7a !important;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.18) !important;
-    display: flex !important;
-    align-items: center !important;
+    width: 170px !important; min-width: 170px !important; max-width: 170px !important;
+    min-height: 42px !important; background: #0f5c99 !important; border-radius: 8px !important;
+    padding: 10px 14px !important; margin: 5px 0 !important; border: 1px solid #0b4a7a !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18) !important; display: flex !important; align-items: center !important;
 }
-
-section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {
-    background: #0b4a7a !important;
-}
-
+section[data-testid="stSidebar"] div[role="radiogroup"] label:hover { background: #0b4a7a !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label[data-checked="true"] {
-    background: #073b63 !important;
-    border-left: 5px solid #facc15 !important;
+    background: #073b63 !important; border-left: 5px solid #facc15 !important;
 }
-
-section[data-testid="stSidebar"] div[role="radiogroup"] input[type="radio"] {
-    display: none !important;
-}
-
+section[data-testid="stSidebar"] div[role="radiogroup"] input[type="radio"] { display: none !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label p {
-    color: #ffffff !important;
-    font-size: 15px !important;
-    font-weight: 700 !important;
-    margin: 0 !important;
-    opacity: 1 !important;
+    color: #ffffff !important; font-size: 15px !important; font-weight: 700 !important; margin: 0 !important; opacity: 1 !important;
 }
 
 html, body { font-family: Arial, sans-serif; font-size:20px; color:#111827; }
 section[data-testid="stSidebar"] { width:255px !important; min-width:255px !important; max-width:255px !important; }
 section[data-testid="stSidebar"] * { font-size: 13px !important; }
-
 .block-container { padding-top: 1rem; }
 
-div[data-baseweb="notification"] div, .stAlert p {
-    font-size: 13px !important;
-    line-height: 1.4 !important;
-}
-
+div[data-baseweb="notification"] div, .stAlert p { font-size: 13px !important; line-height: 1.4 !important; }
 h1, h2, h3, h4, h5, h6, .stSubheader, .fc-toolbar-title, .plotly .gtitle,
 div[data-testid="stMarkdownContainer"] h1, div[data-testid="stMarkdownContainer"] h2,
 div[data-testid="stMarkdownContainer"] h3, div[data-testid="stMarkdownContainer"] h4 {
-    font-size: 14px !important;
-    font-weight: 700 !important;
+    font-size: 14px !important; font-weight: 700 !important;
 }
-
 div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .stRadio div {
-    font-size: 14px !important;
-    font-weight: 600 !important;
+    font-size: 14px !important; font-weight: 600 !important;
 }
 
-.table-title {
-    font-size: 22px;
-    font-weight: 900;
-    color: #020617;
-    margin-top: 18px;
-    margin-bottom: 10px;
-    letter-spacing: -0.2px;
-}
-
+.table-title { font-size: 22px; font-weight: 900; color: #020617; margin-top: 18px; margin-bottom: 10px; letter-spacing: -0.2px; }
 .ump-table-wrap { width: 100%; overflow-x: auto; margin-bottom: 10px; }
 .ump-table-wrap.compact { width: fit-content; max-width: 100%; }
 
-.ump-table {
-    border-collapse: collapse;
-    font-size: 15px;
-    color: #020617 !important;
-    background: white;
-}
-
-.ump-table th {
-    background: #f1f5f9;
-    color: #020617 !important;
-    font-weight: 900;
-    border: 1px solid #cbd5e1;
-    padding: 8px 10px;
-    text-align: left;
-    white-space: nowrap;
-}
-
-.ump-table td {
-    color: #020617 !important;
-    font-weight: 650;
-    border: 1px solid #cbd5e1;
-    padding: 7px 10px;
-    vertical-align: top;
-    line-height: 1.35;
-}
-
+.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; }
+.ump-table th { background: #f1f5f9; color: #020617 !important; font-weight: 900; border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; white-space: nowrap; }
+.ump-table td { color: #020617 !important; font-weight: 650; border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: top; line-height: 1.35; }
 .ump-table.compact th, .ump-table.compact td { white-space: nowrap; }
 .ump-table tr:nth-child(even) td { background: #f8fafc; }
 
 .ump-fixed-header {
-    background: linear-gradient(90deg, #06145f, #0b2f8a);
-    color: #ffffff;
-    padding: 18px 24px;
-    border-radius: 10px;
-    margin: 0 0 22px 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
+    background: linear-gradient(90deg, #06145f, #0b2f8a); color: #ffffff; padding: 18px 24px; border-radius: 10px; margin: 0 0 22px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18); display: flex; flex-direction: column; justify-content: center;
 }
 .ump-fixed-header .ump-vn { font-size: 22px; font-weight: 800; text-transform: uppercase; }
 .ump-fixed-header .ump-en { font-size: 13px; font-weight: 600; text-transform: uppercase; margin-top: 4px; opacity: .95; }
@@ -153,19 +82,15 @@ def parse_time(text):
     if pd.isna(text): return None
     text = str(text).strip().lower()
     if not text or text in ["nan", "none"]: return None
-
     m = re.search(r"(\d{1,2})\s*[gh:]\s*(\d{0,2})", text)
     if m:
         hour = int(m.group(1))
         minute = int(m.group(2)) if m.group(2) else 0
-        if 0 <= hour <= 23 and 0 <= minute <= 59:
-            return hour, minute
-
+        if 0 <= hour <= 23 and 0 <= minute <= 59: return hour, minute
     m = re.fullmatch(r"\d{1,2}", text)
     if m:
         hour = int(text)
-        if 0 <= hour <= 23:
-            return hour, 0
+        if 0 <= hour <= 23: return hour, 0
     return None
 
 def clean_text(value):
@@ -187,20 +112,14 @@ def count_value(value):
     return 1 if up in ["CÓ", "CO", "YES", "Y", "TRUE"] else 1
 
 def event_color(index, key):
-    palette = [
-        "#DBEAFE", "#DCFCE7", "#FEE2E2", "#FFEDD5", "#F3E8FF",
-        "#CCFBF1", "#FCE7F3", "#E0E7FF", "#CFFAFE", "#FEF3C7",
-        "#E5E7EB", "#D1FAE5", "#FAE8FF", "#EDE9FE", "#FDE68A"
-    ]
+    palette = ["#DBEAFE", "#DCFCE7", "#FEE2E2", "#FFEDD5", "#F3E8FF", "#CCFBF1", "#FCE7F3", "#E0E7FF", "#CFFAFE", "#FEF3C7"]
     digest = int(hashlib.md5(str(key).encode("utf-8")).hexdigest(), 16)
     return palette[(digest + index) % len(palette)]
 
 def wrap_label(text, width=28):
-    words = str(text).split()
-    lines, line = [], ""
+    words, lines, line = str(text).split(), [], ""
     for w in words:
-        if len(line + " " + w) <= width:
-            line = (line + " " + w).strip()
+        if len(line + " " + w) <= width: line = (line + " " + w).strip()
         else:
             if line: lines.append(line)
             line = w
@@ -224,11 +143,7 @@ def get_period_df(df_input, period):
     return df_input[(df_input["start"] >= start) & (df_input["start"] < end)].copy(), label, start, end
 
 def dataframe_to_excel_bytes(dataframe):
-    html = f"""
-    <html><head><meta charset="utf-8">
-    <style>table {{ border-collapse: collapse; font-family: Arial; }} th {{ background: #e5e7eb; font-weight: bold; }} th, td {{ border: 1px solid #999; padding: 6px; }}</style>
-    </head><body>{dataframe.to_html(index=False, escape=False)}</body></html>
-    """
+    html = f"""<html><head><meta charset="utf-8"><style>table {{ border-collapse: collapse; font-family: Arial; }} th {{ background: #e5e7eb; font-weight: bold; }} th, td {{ border: 1px solid #999; padding: 6px; }}</style></head><body>{dataframe.to_html(index=False, escape=False)}</body></html>"""
     return html.encode("utf-8-sig")
 
 def show_table_with_download(title, dataframe, file_name, compact=False):
@@ -251,12 +166,11 @@ def collapse_repeated_support_rows(dataframe):
         key = tuple(df_out.at[idx, c] for c in group_cols)
         if key == last_key:
             for c in group_cols: df_out.at[idx, c] = ""
-        else:
-            last_key = key
+        else: last_key = key
     return df_out
 
 # ==============================================================================
-# 3. HÀM TƯƠNG TÁC DỮ LIỆU (ONEDRIVE OGSM & GOOGLE SHEETS)
+# 3. KẾT NỐI & ĐỌC / GHI TRỰC TIẾP EXCEL ONEDRIVE (OGSM/EVENT)
 # ==============================================================================
 def get_azure_token():
     azure_cfg = st.secrets["azure_ogsm"]
@@ -268,54 +182,57 @@ def get_azure_token():
     res = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
     return res.get("access_token")
 
-def get_event_onedrive_url():
+def get_onedrive_file_url():
     onedrive_cfg = st.secrets["onedrive_ogsm"]
     drive_id = onedrive_cfg["drive_id"]
     ogsm_id = onedrive_cfg["ogsm_folder_id"]
     file_name = "QUẢN LÝ TỔNG HỢP  SỰ KIỆN UMP (sample).xlsx"
     return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{ogsm_id}:/EVENT/{file_name}:/content"
 
-def get_gsheet_webhook_url():
-    try: return st.secrets.get("gsheet", {}).get("webhook_url", "")
-    except Exception: return ""
-
-def read_google_sheet_source():
-    webhook_url = get_gsheet_webhook_url()
-    if webhook_url:
-        try:
-            res = requests.get(webhook_url, params={"action": "read"}, timeout=30)
-            if res.status_code == 200 and res.json().get("ok"):
-                return pd.DataFrame(res.json()["rows"])
-        except Exception: pass
-    csv_url = st.secrets["data"]["csv_url"]
-    sep = "&" if "?" in csv_url else "?"
-    return pd.read_csv(f"{csv_url}{sep}_ts={int(datetime.now().timestamp())}")
-
-def post_to_gsheet(payload):
-    url = get_gsheet_webhook_url()
-    if not url: return {"ok": False}
+def read_onedrive_excel() -> pd.DataFrame:
+    """Đọc file Excel trực tiếp từ thư mục OGSM/EVENT trên OneDrive"""
     try:
-        res = requests.get(url, params={"action": payload.get("action", ""), "payload": json.dumps(payload, ensure_ascii=False)}, headers={"Accept": "application/json"}, timeout=30)
-        if res.status_code == 200 and res.json().get("ok"):
-            st.cache_data.clear()
-            return res.json()
-    except Exception: pass
-    
-    res = requests.post(url, json=payload, timeout=30)
-    st.cache_data.clear()
-    return res.json()
+        token = get_azure_token()
+        url = get_onedrive_file_url()
+        headers = {"Authorization": f"Bearer {token}"}
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            return pd.read_excel(BytesIO(res.content))
+        else:
+            st.error(f"Không thể đọc file từ OneDrive (HTTP {res.status_code}): {res.text}")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Lỗi kết nối OneDrive: {e}")
+        return pd.DataFrame()
 
-def safe_error_message(err):
-    return re.sub(r"https://[^\s\)\\]+", "[URL_BẢO_MẬT_ẨN]", str(err))
+def save_onedrive_excel(df: pd.DataFrame) -> bool:
+    """Ghi đè file Excel cập nhật lên OneDrive"""
+    try:
+        token = get_azure_token()
+        url = get_onedrive_file_url()
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        res = requests.put(url, headers=headers, data=output.getvalue())
+        if res.status_code in [200, 201]:
+            st.cache_data.clear()
+            return True
+        else:
+            st.error(f"Lỗi lưu file lên OneDrive (HTTP {res.status_code}): {res.text}")
+            return False
+    except Exception as e:
+        st.error(f"Lỗi khi ghi dữ liệu lên OneDrive: {e}")
+        return False
 
 def parse_event_date(value):
     if pd.isna(value) or not str(value).strip(): return pd.NaT
     dt = pd.to_datetime(str(value).strip(), errors="coerce", dayfirst=False)
     return dt if pd.notna(dt) else pd.to_datetime(str(value).strip(), errors="coerce", dayfirst=True)
 
-# ==============================================================================
-# 4. XL DỮ LIỆU CHÍNH (NORMALIZE & PIPELINE)
-# ==============================================================================
 def process_raw_dataframe(df_raw):
     df = df_raw.copy()
     df.columns = df.columns.str.strip()
@@ -353,12 +270,12 @@ def process_raw_dataframe(df_raw):
         df[col] = df[col].apply(clean_text)
     return df
 
-@st.cache_data(ttl=120)
+@st.cache_data(ttl=60)
 def load_data():
-    return process_raw_dataframe(read_google_sheet_source())
+    return process_raw_dataframe(read_onedrive_excel())
 
 def load_data_no_cache():
-    return process_raw_dataframe(read_google_sheet_source())
+    return process_raw_dataframe(read_onedrive_excel())
 
 def approval_text_from_row(row):
     for c in row.index:
@@ -386,10 +303,8 @@ def build_approval_summary_table(df_input):
         s = r.get("start")
         ngay_gio = s.strftime("%d/%m/%Y" if s.hour == 0 and s.minute == 0 else "%d/%m/%Y %H:%M") if pd.notna(s) else ""
         rows.append({
-            "Sự kiện": clean_text(r.get("event", "")),
-            "Đơn vị": clean_text(r.get("donvi", "")),
-            "Ngày giờ": ngay_gio,
-            "Địa điểm": clean_text(r.get("location", "")),
+            "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
+            "Ngày giờ": ngay_gio, "Địa điểm": clean_text(r.get("location", "")),
             "Hỗ trợ": clean_text(r.get("support", "")) or "Không"
         })
     return pd.DataFrame(rows, columns=columns)
@@ -430,7 +345,7 @@ def build_support_table(df_input):
     return pd.DataFrame(rows)
 
 # ==============================================================================
-# 5. KHỞI TẠO STATE & KHAI BÁO MENU
+# 4. KHỞI TẠO STATE & KHAI BÁO MENU
 # ==============================================================================
 df = load_data()
 today = datetime.today()
@@ -464,7 +379,7 @@ def enforce_menu_access(menu_name):
     return False
 
 # ==============================================================================
-# 6. KHU VỰC CÁC TRANG CHỨC NĂNG
+# 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
 # --- DASHBOARD ---
@@ -500,10 +415,7 @@ if menu == "Dashboard":
 
     selected_event = calendar(
         events=events,
-        options={
-            "initialView": "dayGridMonth", "locale": "vi", "firstDay": 1,
-            "height": "auto", "eventDisplay": "block", "displayEventTime": False
-        }
+        options={"initialView": "dayGridMonth", "locale": "vi", "firstDay": 1, "height": "auto", "eventDisplay": "block", "displayEventTime": False}
     )
 
     if selected_event and "event" in selected_event:
@@ -524,7 +436,7 @@ if menu == "Dashboard":
     c2.metric("Tháng", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- ĐĂNG KÝ ---
+# --- ĐĂNG KÝ (GHI TRỰC TIẾP ONEDRIVE) ---
 elif menu == "Đăng ký":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📝 Đăng ký sự kiện</div>', unsafe_allow_html=True)
@@ -559,21 +471,46 @@ elif menu == "Đăng ký":
         if not event_name or not donvi or not location:
             st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
         else:
-            payload = {
-                "action": "create",
-                "Thời gian bắt đầu": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                "Tên sự kiện": event_name, "Đơn vị phụ trách/ tổ chức": donvi,
-                "Ngày tổ chức": start_date.strftime("%Y-%m-%d"), "Ngày kết thúc": end_date.strftime("%Y-%m-%d"),
-                "Giờ bắt đầu": start_time.strftime("%H:%M"), "Giờ kết thúc": end_time.strftime("%H:%M"),
-                "Địa điểm tổ chức": location, "Người phụ trách": nguoi_phu_trach,
-                "Người đăng ký": nguoi_dang_ky, "Email": email, "Hỗ trợ": support_flag
-            }
-            try:
-                res = post_to_gsheet(payload)
-                st.cache_data.clear()
-                st.success("Đã gửi đăng ký thành công! Sự kiện sẽ chờ quản trị viên phê duyệt.")
-            except Exception as e:
-                st.error(f"Lỗi gửi đăng ký: {safe_error_message(e)}")
+            with st.spinner("Đang lưu sự kiện vào file Excel trên OneDrive..."):
+                df_excel = read_onedrive_excel()
+                
+                # Tính Id tự động
+                next_id = 1
+                if not df_excel.empty and "Id" in df_excel.columns:
+                    valid_ids = pd.to_numeric(df_excel["Id"], errors="coerce").dropna()
+                    if not valid_ids.empty:
+                        next_id = int(valid_ids.max() + 1)
+
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Khớp đúng 39 cột từ file mẫu OneDrive
+                new_row = {
+                    "Id": next_id,
+                    "Thời gian bắt đầu": now_str,
+                    "Thời gian hoàn thành": "",
+                    "Email": email,
+                    "Tên": nguoi_dang_ky,
+                    "Ngôn ngữ": None,
+                    "Đơn vị phụ trách/ tổ chức": donvi,
+                    "Tên sự kiện": event_name,
+                    "Ngày tổ chức": start_date.strftime("%Y-%m-%d"),
+                    "Giờ bắt đầu": start_time.strftime("%H:%M"),
+                    "Giờ kết thúc": end_time.strftime("%H:%M"),
+                    "Ngày kết thúc": end_date.strftime("%Y-%m-%d"),
+                    "Địa điểm tổ chức": location,
+                    "Đối tượng tham gia": "",
+                    "Văn bản đã được phê duyệt/có liên quan đến sự kiện": "",
+                    "Thông tin người phụ trách": nguoi_phu_trach,
+                    "Cập nhật thông tin diễn ra sự kiện lên website": "KHÔNG",
+                    "Một số thông tin thêm về sự kiện (nếu có)": "",
+                    "Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp": support_flag,
+                    "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)": ""
+                }
+
+                updated_df = pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)
+                if save_onedrive_excel(updated_df):
+                    st.success("🎉 Đã lưu sự kiện thành công trực tiếp vào file Excel trên OneDrive!")
+                    st.rerun()
 
 # --- BÁO CÁO ---
 elif menu == "Báo cáo":
@@ -644,12 +581,12 @@ elif menu == "Truy vấn AI":
             show_table_with_download("Danh sách cần hỗ trợ", collapse_repeated_support_rows(supp_df), "can_ho_tro.xlsx")
         else: st.warning("Hãy nhập từ khóa: tuần, tháng, năm hoặc hỗ trợ")
 
-# --- PHÊ DUYỆT ---
+# --- PHÊ DUYỆT (CẬP NHẬT TRỰC TIẾP ONEDRIVE) ---
 elif menu == "Phê duyệt":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📋 Phê duyệt sự kiện</div>', unsafe_allow_html=True)
     
-    if st.button("🔄 Làm mới dữ liệu"):
+    if st.button("🔄 Làm mới dữ liệu OneDrive"):
         st.cache_data.clear()
         st.rerun()
 
@@ -670,20 +607,34 @@ elif menu == "Phê duyệt":
         reason = st.text_area("Ghi chú / Lý do")
 
         if st.button("Cập nhật phê duyệt"):
-            item_id = clean_text(selected_row.get("item_id", ""))
-            approval_text = opinion if not reason else f"{opinion}: {reason}"
-            payload = {
-                "action": "approve", "Id": item_id,
-                "Thời gian hoàn thành": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)": approval_text
-            }
-            try:
-                post_to_gsheet(payload)
-                st.success(f"Đã cập nhật phê duyệt: {opinion}")
-                st.cache_data.clear()
-                st.rerun()
-            except Exception as e:
-                st.error(f"Lỗi phê duyệt: {safe_error_message(e)}")
+            item_id = str(selected_row.get("item_id", "")).strip()
+            if not item_id:
+                st.error("Sự kiện này chưa có Id trong file Excel!")
+            else:
+                with st.spinner("Đang cập nhật trạng thái phê duyệt lên OneDrive..."):
+                    df_excel = read_onedrive_excel()
+                    
+                    # Tìm đúng cột Ý kiến phê duyệt
+                    col_opinion = "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"
+                    if col_opinion not in df_excel.columns:
+                        for c in df_excel.columns:
+                            if "Ý kiến" in str(c) and "Phòng Hành chính Tổng hợp" in str(c):
+                                col_opinion = c
+                                break
+
+                    approval_text = opinion if not reason else f"{opinion}: {reason}"
+                    
+                    # Tìm dòng có Id tương ứng và ghi đè
+                    mask = df_excel["Id"].astype(str).str.strip() == item_id
+                    if mask.any():
+                        df_excel.loc[mask, col_opinion] = approval_text
+                        df_excel.loc[mask, "Thời gian hoàn thành"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        if save_onedrive_excel(df_excel):
+                            st.success(f"🎉 Đã phê duyệt: {opinion} và lưu vào file Excel trên OneDrive!")
+                            st.rerun()
+                    else:
+                        st.error(f"Không tìm thấy Id {item_id} trong file Excel trên OneDrive!")
 
 # --- LIÊN HỆ ---
 elif menu == "Liên hệ":
