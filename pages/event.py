@@ -169,7 +169,7 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 # ==============================================================================
-# 3. KẾT NỐI ONEDRIVE CỐ ĐỊNH ĐƯỜNG DẪN GỐC /OGSM/EVENT/Danh_sach_su_kien.xlsx
+# 3. KẾT NỐI ONEDRIVE CỐ ĐỊNH /OGSM/EVENT/Danh_sach_su_kien.xlsx
 # ==============================================================================
 def get_azure_token():
     azure_cfg = st.secrets["azure_ogsm"]
@@ -184,7 +184,6 @@ def get_azure_token():
 def get_onedrive_file_url():
     onedrive_cfg = st.secrets["onedrive_ogsm"]
     drive_id = onedrive_cfg["drive_id"]
-    # ĐỊA CHỈ GỐC DUY NHẤT THEO YÊU CẦU
     return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/OGSM/EVENT/Danh_sach_su_kien.xlsx:/content"
 
 def read_onedrive_excel() -> pd.DataFrame:
@@ -196,7 +195,7 @@ def read_onedrive_excel() -> pd.DataFrame:
         if res.status_code == 200:
             return pd.read_excel(BytesIO(res.content))
         else:
-            st.error(f"❌ Không tìm thấy file '/OGSM/EVENT/Danh_sach_su_kien.xlsx' trên OneDrive (Mã lỗi {res.status_code}): {res.text}")
+            st.error(f"❌ Không tìm thấy file '/OGSM/EVENT/Danh_sach_su_kien.xlsx' trên OneDrive (Mã lỗi {res.status_code}).")
             return pd.DataFrame()
     except Exception as e:
         st.error(f"❌ Lỗi kết nối OneDrive: {e}")
@@ -217,6 +216,9 @@ def save_onedrive_excel(df: pd.DataFrame) -> bool:
         if res.status_code in [200, 201]:
             st.cache_data.clear()
             return True
+        elif res.status_code == 423:
+            st.error("⚠️ File Excel đang mở trên trình duyệt/desktop nên bị khóa! Vui lòng ĐÓNG TAB EXCEL trên OneDrive, chờ 10 giây rồi thử lại.")
+            return False
         else:
             st.error(f"❌ Lỗi ghi đè file OneDrive ({res.status_code}): {res.text}")
             return False
@@ -337,7 +339,7 @@ def build_support_table(df_input):
                 "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
                 "Ngày giờ": r.get("start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("start")) else "",
                 "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": "Có yêu cầu hỗ trợ",
-                "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get(col, ""))
+                "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get("support", ""))
             })
     return pd.DataFrame(rows)
 
@@ -433,7 +435,7 @@ if menu == "Dashboard":
     c2.metric("Tháng", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- ĐĂNG KÝ ---
+# --- ĐĂNG KÝ (CÓ KHÔI PHỤC ĐẦY ĐỦ FORM NỘI DUNG HỖ TRỢ) ---
 elif menu == "Đăng ký":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div style="font-size:14px;font-weight:700;">📝 Đăng ký sự kiện</div>', unsafe_allow_html=True)
@@ -465,13 +467,58 @@ elif menu == "Đăng ký":
             nguoi_dang_ky = st.text_input("Người đăng ký")
             email = st.text_input("Email")
 
+        # KHÔI PHỤC KHỐI NHẬP CHI TIẾT HỖ TRỢ KHI CHỌN "CÓ"
+        support_ban_don_tiep = 0
+        support_khan_ban = "KHÔNG"
+        support_le_tan = 0
+        support_bang_ten = 0
+        support_bia_ky_ket = 0
+        support_nuoc_uong = 0
+        support_teabreak = 0
+        support_hoa_ban = 0
+        support_hoa_buc = 0
+        support_hoa_tang = 0
+        support_qua_tang = 0
+        support_brochure = 0
+        support_khay_bung = 0
+        support_bandroll_standee = ""
+        support_backdrop = ""
+        support_bang_dien_tu = "KHÔNG"
+        support_thu_moi = "KHÔNG"
+        support_khac = ""
+
+        if support_flag == "CÓ":
+            st.markdown('<div class="table-title">Nội dung hỗ trợ từ Phòng HCTH</div>', unsafe_allow_html=True)
+            s1, s2, s3 = st.columns(3)
+            with s1:
+                support_ban_don_tiep = st.number_input("Số lượng bàn đón tiếp", min_value=0, step=1)
+                support_khan_ban = st.selectbox("Cần trải khăn bàn hội trường", ["KHÔNG", "CÓ"])
+                support_le_tan = st.number_input("Số lượng lễ tân", min_value=0, step=1)
+                support_bang_ten = st.number_input("Số lượng bảng tên (bảng mica)", min_value=0, step=1)
+                support_bia_ky_ket = st.number_input("Số lượng bìa ký kết", min_value=0, step=1)
+                support_nuoc_uong = st.number_input("Số lượng nước uống", min_value=0, step=1)
+            with s2:
+                support_teabreak = st.number_input("Số phần Teabreak", min_value=0, step=1)
+                support_hoa_ban = st.number_input("Số lượng hoa để bàn", min_value=0, step=1)
+                support_hoa_buc = st.number_input("Số lượng hoa để bục phát biểu", min_value=0, step=1)
+                support_hoa_tang = st.number_input("Số lượng hoa bó để tặng", min_value=0, step=1)
+                support_qua_tang = st.number_input("Số lượng quà tặng", min_value=0, step=1)
+                support_brochure = st.number_input("Số lượng Brochure", min_value=0, step=1)
+            with s3:
+                support_khay_bung = st.number_input("Số lượng khay bưng", min_value=0, step=1)
+                support_bandroll_standee = st.text_input("Số lượng bandroll, standee cần in & thi công")
+                support_backdrop = st.text_input("Số lượng Backdrop cần in & thi công")
+                support_bang_dien_tu = st.selectbox("Cần chạy bảng điện tử", ["KHÔNG", "CÓ"])
+                support_thu_moi = st.selectbox("Cần gửi thư mời", ["KHÔNG", "CÓ"])
+                support_khac = st.text_area("Các yêu cầu khác (nếu có)")
+
         submitted = st.form_submit_button("Gửi đăng ký")
 
     if submitted:
         if not event_name or not donvi or not location:
             st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
         else:
-            with st.spinner("Đang lưu sự kiện trực tiếp vào file Excel trên OneDrive..."):
+            with st.spinner("Đang lưu sự kiện vào file Excel trên OneDrive..."):
                 df_excel = read_onedrive_excel()
                 
                 if df_excel.empty:
@@ -485,6 +532,7 @@ elif menu == "Đăng ký":
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     new_row = {col: None for col in df_excel.columns}
                     
+                    # Điền thông tin chung
                     new_row["Id"] = next_id
                     new_row["Thời gian bắt đầu"] = now_str
                     new_row["Thời gian hoàn thành"] = ""
@@ -500,9 +548,29 @@ elif menu == "Đăng ký":
                     new_row["Thông tin người phụ trách"] = nguoi_phu_trach
                     new_row["Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp"] = support_flag
 
+                    # Điền thông tin chi tiết hỗ trợ
+                    new_row["Số lượng bàn đón tiếp"] = support_ban_don_tiep
+                    new_row["Cần trải khăn bàn hội trường"] = support_khan_ban
+                    new_row["Số lượng lễ tân"] = support_le_tan
+                    new_row["Số lượng bảng tên (bảng mica)"] = support_bang_ten
+                    new_row["Số lượng bìa ký kết"] = support_bia_ky_ket
+                    new_row["Số lượng nước uống"] = support_nuoc_uong
+                    new_row["Số phần Teabreak"] = support_teabreak
+                    new_row["Số lượng hoa để bàn"] = support_hoa_ban
+                    new_row["Số lượng hoa để bục phát biểu"] = support_hoa_buc
+                    new_row["Số lượng hoa bó để tặng"] = support_hoa_tang
+                    new_row["Số lượng quà tặng"] = support_qua_tang
+                    new_row["Số lượng Brochure"] = support_brochure
+                    new_row["Số lượng khay bưng"] = support_khay_bung
+                    new_row["Số lượng bandroll, standee cần in và thi công"] = support_bandroll_standee
+                    new_row["Số lượng Backdrop cần in và thi công"] = support_backdrop
+                    new_row["Cần chạy bảng điện tử"] = support_bang_dien_tu
+                    new_row["Cần gửi thư mời"] = support_thu_moi
+                    new_row["Các yêu cầu khác (nếu có)"] = support_khac
+
                     updated_df = pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)
                     if save_onedrive_excel(updated_df):
-                        st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện ID {next_id} vào file Excel!"
+                        st.session_state["approval_msg"] = f"🎉 Đã đăng ký thành công sự kiện (ID: {next_id})!"
                         st.rerun()
 
 # --- BÁO CÁO ---
