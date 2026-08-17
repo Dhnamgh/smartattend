@@ -418,7 +418,6 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
     """
     raw_data = raw_event_data_dictionary
 
-    # Danh sách các trường đưa vào bảng (không đưa support_bang_dien_tu vào bảng)
     support_fields = {
         "support_ban_don_tiep": "Số lượng bàn đón tiếp",
         "support_khan_ban": "Cần trải khăn bàn hội trường",
@@ -440,7 +439,6 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
     }
 
     detailed_rows = []
-    
     for field_key, display_name in support_fields.items():
         if field_key in raw_data:
             val = raw_data[field_key]
@@ -452,7 +450,6 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
                 if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
                     detailed_rows.append(f"<tr><td>{display_name}</td><td>{txt}</td></tr>")
 
-    # Xử lý riêng trường Bảng điện tử ra 1 hàng riêng dưới bảng
     bang_dien_tu_html = ""
     val_bdt = clean_text(raw_data.get("support_bang_dien_tu", ""))
     noi_dung_bdt = clean_text(raw_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
@@ -466,27 +463,10 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
 
     table_part = ""
     if detailed_rows:
-        table_part = f"""
-        <table class="ump-table compact">
-            <thead>
-                <tr>
-                    <th>Nội dung hỗ trợ</th>
-                    <th>Số lượng/Yêu cầu</th>
-                </tr>
-            </thead>
-            <tbody>
-                {''.join(detailed_rows)}
-            </tbody>
-        </table>
-        """
+        rows_str = "".join(detailed_rows)
+        table_part = f'<table class="ump-table compact"><thead><tr><th>Nội dung hỗ trợ</th><th>Số lượng/Yêu cầu</th></tr></thead><tbody>{rows_str}</tbody></table>'
 
-    result_html = f"""
-    <div class="details-support-table-wrap">
-        <div class="details-support-title">Nội dung hỗ trợ chi tiết</div>
-        {table_part}
-        {bang_dien_tu_html}
-    </div>
-    """
+    result_html = f'<div class="details-support-table-wrap"><div class="details-support-title">Nội dung hỗ trợ chi tiết</div>{table_part}{bang_dien_tu_html}</div>'
     return result_html
 
 # ==============================================================================
@@ -563,15 +543,15 @@ if menu == "Dashboard":
     if selected_event_props:
         props = selected_event_props
         
-        details_html = f"""
-        <div class="event-details-panel">
-            <div class="details-title">📋 Chi tiết sự kiện đã chọn trên lịch</div>
-            <div class="details-item"><span class="details-label">📌 Sự kiện:</span> {props['panel_event_title']}</div>
-            <div class="details-item"><span class="details-label">🏢 Đơn vị:</span> {props['panel_donvi']}</div>
-            <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
-            <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
-            <div class="details-item"><span class="details-label">Hỗ trợ:</span> {props['panel_support_text'] or "Không yêu cầu"}</div>
-        """
+        details_html = (
+            f'<div class="event-details-panel">'
+            f'<div class="details-title">Chi tiết sự kiện đã chọn trên lịch</div>'
+            f'<div class="details-item"><span class="details-label">Sự kiện:</span> {props["panel_event_title"]}</div>'
+            f'<div class="details-item"><span class="details-label">Đơn vị:</span> {props["panel_donvi"]}</div>'
+            f'<div class="details-item"><span class="details-label">Địa điểm:</span> {props["panel_location"]}</div>'
+            f'<div class="details-item"><span class="details-label">Thời gian:</span> {props["panel_time_label"]}</div>'
+            f'<div class="details-item"><span class="details-label">Hỗ trợ:</span> {props["panel_support_text"] or "Không yêu cầu"}</div>'
+        )
         
         if is_yes(props['panel_support_text']):
             try:
@@ -580,7 +560,7 @@ if menu == "Dashboard":
                 support_table_html = build_detailed_support_table_html(raw_row_data)
                 details_html += support_table_html
             except Exception as ex:
-                details_html += f"<p class='details-item'>❌ Lỗi giải nén dữ liệu hỗ trợ: {ex}</p>"
+                details_html += f'<p class="details-item">❌ Lỗi giải nén dữ liệu hỗ trợ: {ex}</p>'
             
         details_html += "</div>"
         st.markdown(details_html, unsafe_allow_html=True)
