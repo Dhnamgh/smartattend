@@ -13,14 +13,14 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from io import BytesIO
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", initial_sidebar_state="collapsed")
 
 # ==============================================================================
 # 1. GIAO DIỆN & CSS (TỐI ƯU TOÀN DIỆN CHO MOBILE RESPONSIVE)
 # ==============================================================================
 st.markdown("""
 <style>
-/* CSS mặc định cho Sidebar */
+/* CSS Sidebar */
 section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 8px !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
     width: 170px !important; min-width: 170px !important; max-width: 170px !important;
@@ -41,7 +41,7 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label p {
 html, body { font-family: Arial, sans-serif; font-size: 18px; color: #111827; }
 section[data-testid="stSidebar"] { width: 255px !important; min-width: 255px !important; max-width: 255px !important; }
 section[data-testid="stSidebar"] * { font-size: 13px !important; }
-.block-container { padding-top: 1rem; padding-left: 1rem; padding-right: 1rem; }
+.block-container { padding-top: 1rem; padding-left: 1rem; padding-right: 1rem; max-width: 100% !important; }
 
 div[data-baseweb="notification"] div, .stAlert p { font-size: 13px !important; line-height: 1.4 !important; }
 h1, h2, h3, h4, h5, h6, .stSubheader, .plotly .gtitle,
@@ -82,65 +82,61 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 .details-label { font-weight: 700; color: #020617; }
 .details-support-title { font-size: 16px; font-weight: 700; color: #020617; margin-top: 14px; margin-bottom: 8px; }
 
-/* CSS Nút làm mới lịch */
 .stButton>button { width: auto; font-size: 13px !important; }
 
 /* ==============================================================================
-   CSS TỐI ƯU MOBILE (MÀN HÌNH NHỎ) - TỰ ĐỘNG CO DÃN VỪA MÀN HÌNH
+   CSS TỰ CO DÃN 100% VỪA VẶN MÀN HÌNH ĐIỆN THOẠI
    ============================================================================== */
 @media screen and (max-width: 768px) {
     html, body { font-size: 13px !important; }
-    .block-container { padding-left: 6px !important; padding-right: 6px !important; padding-top: 0.5rem !important; }
+    .block-container { padding: 4px !important; }
 
-    section[data-testid="stSidebar"] { width: 100% !important; max-width: 100% !important; }
+    section[data-testid="stSidebar"] { width: 85% !important; min-width: 250px !important; }
     section[data-testid="stSidebar"] div[role="radiogroup"] label { width: 100% !important; min-width: 100% !important; }
 
-    .ump-fixed-header { padding: 10px 12px; margin-bottom: 12px; border-radius: 6px; }
+    .ump-fixed-header { padding: 10px 12px; margin-bottom: 10px; border-radius: 6px; }
     .ump-fixed-header .ump-vn { font-size: 12px !important; }
     .ump-fixed-header .ump-en { font-size: 8px !important; margin-top: 2px; }
-    .ump-fixed-header .ump-app { font-size: 15px !important; margin-top: 6px; }
+    .ump-fixed-header .ump-app { font-size: 14px !important; margin-top: 4px; }
 
-    .table-title { font-size: 15px !important; font-weight: 800; margin-top: 8px; margin-bottom: 6px; }
+    .table-title { font-size: 14px !important; font-weight: 800; margin-top: 6px; margin-bottom: 4px; }
 
-    /* Thanh công cụ lịch FullCalendar trên Mobile */
+    /* Fix triệt để khung lịch trên mobile */
+    iframe { max-width: 100% !important; }
+    .fc { font-size: 11px !important; }
     .fc .fc-toolbar {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
-        gap: 6px !important;
-        margin-bottom: 8px !important;
+        gap: 4px !important;
+        margin: 4px 0 !important;
     }
     .fc .fc-toolbar-chunk {
         display: flex !important;
         justify-content: center !important;
-        align-items: center !important;
         width: 100% !important;
     }
     .fc .fc-toolbar-title {
-        font-size: 15px !important;
+        font-size: 14px !important;
         font-weight: 800 !important;
         text-align: center !important;
-        padding: 2px 0 !important;
-        white-space: nowrap !important;
+        margin: 2px 0 !important;
     }
     .fc .fc-button {
-        padding: 4px 10px !important;
+        padding: 3px 8px !important;
         font-size: 11px !important;
-        border-radius: 4px !important;
     }
     
-    /* Ô ngày và sự kiện trên lịch */
-    .fc-col-header-cell-cushion { font-size: 11px !important; padding: 2px !important; }
-    .fc-daygrid-day-number { font-size: 11px !important; padding: 2px 4px !important; }
+    .fc-col-header-cell-cushion { font-size: 10px !important; padding: 2px !important; }
+    .fc-daygrid-day-number { font-size: 10px !important; padding: 1px 3px !important; }
     .fc-daygrid-event { margin: 1px 0 !important; }
-    .fc-event-title { font-size: 9px !important; line-height: 1.1 !important; white-space: normal !important; }
+    .fc-event-title { font-size: 8.5px !important; line-height: 1.05 !important; }
 
-    /* Panel chi tiết */
-    .event-details-panel { padding: 10px !important; margin-top: 10px !important; }
-    .details-title { font-size: 15px !important; }
-    .details-item { font-size: 13px !important; margin-bottom: 4px !important; }
-    .ump-table { font-size: 12px !important; }
-    .ump-table th, .ump-table td { padding: 4px 6px !important; }
+    .event-details-panel { padding: 10px !important; margin-top: 8px !important; }
+    .details-title { font-size: 14px !important; }
+    .details-item { font-size: 12px !important; margin-bottom: 3px !important; }
+    .ump-table { font-size: 11px !important; }
+    .ump-table th, .ump-table td { padding: 4px 5px !important; }
 }
 </style>
 
@@ -246,7 +242,6 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 def send_notification_email(event_name, donvi, start_dt, location):
-    """Gửi email thông báo tự động cho Quản trị viên"""
     try:
         cfg = st.secrets.get("email", {})
         if not cfg or "sender_email" not in cfg: return False
@@ -557,7 +552,7 @@ if menu == "Dashboard":
     except Exception:
         df_f = keep_only_thong_nhat_for_calendar(df_f)
 
-    st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện - tháng {today.month} năm {today.year}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện</div>', unsafe_allow_html=True)
 
     events, event_dates_for_stats = [], []
     for idx, (_, r) in enumerate(df_f.sort_values("start").iterrows()):
@@ -593,9 +588,11 @@ if menu == "Dashboard":
             "locale": "vi",
             "firstDay": 1,
             "height": "auto",
+            "contentHeight": "auto",
+            "aspectRatio": 1.1,
             "eventDisplay": "block",
             "displayEventTime": False,
-            "headerToolbar": {"left": "prev,next,today", "center": "title", "right": ""}
+            "headerToolbar": {"left": "prev,next", "center": "title", "right": "today"}
         },
         key="ump_calendar"
     )
