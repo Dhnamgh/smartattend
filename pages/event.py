@@ -13,17 +13,17 @@ from io import BytesIO
 st.set_page_config(layout="wide")
 
 # ==============================================================================
-# !!! PHẦN QUAN TRỌNG: KHỞI TẠO STATE (PHẢI ĐẶT TRƯỚC CSS) !!!
+# !!! KHỞI TẠO STATE (ĐẶT TRƯỚC CSS) !!!
 # ==============================================================================
-# State để lưu trữ sự kiện người dùng nhấn vào để xem chi tiết
 if "selected_event_details" not in st.session_state:
     st.session_state.selected_event_details = None
 
 # ==============================================================================
-# 1. GIAO DIỆN & CSS
+# 1. GIAO DIỆN & CSS (GIỮ NGUYÊN CSS CŨ & TỐI ƯU MOBILE)
 # ==============================================================================
 st.markdown("""
 <style>
+/* CSS Sidebar & Cơ bản - GIỮ NGUYÊN */
 section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 8px !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
     width: 170px !important; min-width: 170px !important; max-width: 170px !important;
@@ -57,12 +57,10 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 
 .table-title { font-size: 22px; font-weight: 900; color: #020617; margin-top: 18px; margin-bottom: 10px; letter-spacing: -0.2px; }
 .ump-table-wrap { width: 100%; overflow-x: auto; margin-bottom: 10px; }
-.ump-table-wrap.compact { width: fit-content; max-width: 100%; }
 
-.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; }
+.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; width: 100%; }
 .ump-table th { background: #f1f5f9; color: #020617 !important; font-weight: 900; border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; white-space: nowrap; }
 .ump-table td { color: #020617 !important; font-weight: 650; border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: top; line-height: 1.35; }
-.ump-table.compact th, .ump-table.compact td { white-space: nowrap; }
 .ump-table tr:nth-child(even) td { background: #f8fafc; }
 
 .ump-fixed-header {
@@ -73,7 +71,7 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 .ump-fixed-header .ump-en { font-size: 13px; font-weight: 600; text-transform: uppercase; margin-top: 4px; opacity: .95; }
 .ump-fixed-header .ump-app { font-size: 24px; font-weight: 800; margin-top: 14px; }
 
-/* CSS PANEL CHI TIẾT SỰ KIỆN */
+/* CSS PANEL CHI TIẾT SỰ KIỆN - GIỮ NGUYÊN */
 .event-details-panel {
     background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 20px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -81,6 +79,26 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 .details-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
 .details-item { font-size: 15px; color: #1e293b; margin-bottom: 6px; line-height: 1.4; }
 .details-label { font-weight: 600; color: #020617; }
+
+/* CSS BẢNG HỖ TRỢ CHI TIẾT TRONG PANEL */
+.details-support-table-wrap { margin-top: 15px; border-top: 1px dashed #cbd5e1; padding-top: 10px; }
+.details-support-title { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+
+/* CSS HỖ TRỢ MOBILE RESPONSIVE - GIỮ NGUYÊN */
+@media screen and (max-width: 768px) {
+    .block-container { padding-top: 0.5rem; }
+    .ump-fixed-header { padding: 12px 16px; margin-bottom: 15px; }
+    .ump-fixed-header .ump-vn { font-size: 14px; }
+    .ump-fixed-header .ump-en { font-size: 10px; margin-top: 2px; }
+    .ump-fixed-header .ump-app { font-size: 17px; margin-top: 8px; }
+    .table-title { font-size: 17px; margin-top: 10px; }
+    .fc .fc-toolbar-title { font-size: 15px !important; }
+    .event-details-panel { padding: 12px; margin-top: 10px; }
+    .details-title { font-size: 16px; }
+    .details-item { font-size: 14px; }
+    .ump-table { font-size: 13px; }
+    .ump-table th, .ump-table td { padding: 6px 8px; }
+}
 </style>
 
 <div class="ump-fixed-header">
@@ -91,8 +109,10 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. HÀM TRỢ GIÚP (HELPERS) - GIỮ NGUYÊN
+# 2. HÀM TRỢ GIÚP (HELPERS)
 # ==============================================================================
+# GIỮ NGUYÊN CÁC HÀM: parse_time, clean_text, is_yes, count_value, event_color, wrap_label, get_period_df, dataframe_to_excel_bytes, show_table_with_download, collapse_repeated_support_rows, approval_text_from_row
+
 def parse_time(text):
     if pd.isna(text): return None
     text = str(text).strip().lower()
@@ -184,44 +204,6 @@ def collapse_repeated_support_rows(dataframe):
         else: last_key = key
     return df_out
 
-# ==============================================================================
-# 3. KẾT NỐI ONEDRIVE GRAPH API - GIỮ NGUYÊN
-# ==============================================================================
-@st.cache_data(ttl=15)
-def load_data():
-    try:
-        azure_cfg = st.secrets["azure_ogsm"]
-        onedrive_cfg = st.secrets["onedrive_ogsm"]
-        
-        app = msal.ConfidentialClientApplication(
-            client_id=azure_cfg["client_id"],
-            client_credential=azure_cfg["client_secret"],
-            authority=f"https://login.microsoftonline.com/{azure_cfg['tenant_id']}"
-        )
-        
-        res = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
-        if "access_token" not in res:
-            st.error("❌ Lỗi xác thực Azure Graph API")
-            return pd.DataFrame()
-        
-        token = res["access_token"]
-        drive_id = onedrive_cfg["drive_id"]
-        file_path = "/OGSM/EVENT/Danh_sach_su_kien.xlsx"
-        url = f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:{file_path}:/content"
-        headers = {"Authorization": f"Bearer {token}"}
-        
-        excel_res = requests.get(url, headers=headers)
-        if excel_res.status_code == 200:
-            df_raw = pd.read_excel(BytesIO(excel_res.content))
-            return process_raw_dataframe(df_raw)
-        else:
-            st.error(f"❌ Lỗi đọc file OneDrive ({excel_res.status_code})")
-            return pd.DataFrame()
-            
-    except Exception as e:
-        st.error(f"❌ Lỗi kết nối OneDrive: {e}")
-        return pd.DataFrame()
-
 def approval_text_from_row(row):
     for c in row.index:
         c_norm = re.sub(r"\s+", " ", str(c)).strip()
@@ -230,6 +212,68 @@ def approval_text_from_row(row):
             if val and val.lower() not in ["nan", "none", "nat"]:
                 return val
     return ""
+
+# GIỮ NGUYÊN CÁC HÀM KẾT NỐI: get_azure_token, get_onedrive_file_url, read_onedrive_excel, save_onedrive_excel, parse_event_date, process_raw_dataframe, keep_only_thong_nhat_for_calendar, build_approval_summary_table, build_support_table
+
+def get_azure_token():
+    azure_cfg = st.secrets["azure_ogsm"]
+    app = msal.ConfidentialClientApplication(
+        client_id=azure_cfg["client_id"],
+        client_credential=azure_cfg["client_secret"],
+        authority=f"https://login.microsoftonline.com/{azure_cfg['tenant_id']}"
+    )
+    res = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
+    return res.get("access_token")
+
+def get_onedrive_file_url():
+    onedrive_cfg = st.secrets["onedrive_ogsm"]
+    drive_id = onedrive_cfg["drive_id"]
+    return f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root:/OGSM/EVENT/Danh_sach_su_kien.xlsx:/content"
+
+def read_onedrive_excel() -> pd.DataFrame:
+    try:
+        token = get_azure_token()
+        url = get_onedrive_file_url()
+        headers = {"Authorization": f"Bearer {token}"}
+        res = requests.get(url, headers=headers)
+        if res.status_code == 200:
+            return pd.read_excel(BytesIO(res.content))
+        else:
+            st.error(f"❌ Không tìm thấy file '/OGSM/EVENT/Danh_sach_su_kien.xlsx' trên OneDrive (Mã lỗi {res.status_code}).")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Lỗi kết nối OneDrive: {e}")
+        return pd.DataFrame()
+
+def save_onedrive_excel(df: pd.DataFrame) -> bool:
+    try:
+        token = get_azure_token()
+        url = get_onedrive_file_url()
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        res = requests.put(url, headers=headers, data=output.getvalue())
+        if res.status_code in [200, 201]:
+            st.cache_data.clear()
+            return True
+        elif res.status_code == 423:
+            st.error("⚠️ File Excel đang mở trên trình duyệt/desktop nên bị khóa! Vui lòng ĐÓNG TAB EXCEL trên OneDrive, chờ 10 giây rồi thử lại.")
+            return False
+        else:
+            st.error(f"❌ Lỗi ghi đè file OneDrive ({res.status_code}): {res.text}")
+            return False
+    except Exception as e:
+        st.error(f"❌ Lỗi xử lý ghi file: {e}")
+        return False
+
+def parse_event_date(value):
+    if pd.isna(value) or not str(value).strip(): return pd.NaT
+    dt = pd.to_datetime(str(value).strip(), errors="coerce", dayfirst=False)
+    return dt if pd.notna(dt) else pd.to_datetime(str(value).strip(), errors="coerce", dayfirst=True)
 
 def process_raw_dataframe(df_raw):
     if df_raw.empty: return df_raw
@@ -325,7 +369,7 @@ def build_support_table(df_input):
                     })
         if has_support_flag and not has_detail:
             rows.append({
-                "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
+                "Sự kiện": r.get("event", ""), "Đơn vị", r.get("donvi", ""),
                 "Ngày giờ": r.get("full_start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("full_start")) else "",
                 "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": "Có yêu cầu hỗ trợ",
                 "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get("support", ""))
@@ -333,7 +377,93 @@ def build_support_table(df_input):
     return pd.DataFrame(rows)
 
 # ==============================================================================
-# 4. KHỞI TẠO STATE & KHAI BÁO MENU - GIỮ NGUYÊN
+# !!! HÀM MỚI BỔ SUNG: XÂY DỰNG BẢNG HTML CHI TIẾT HỖ TRỢ TRONG PANEL !!!
+# ==============================================================================
+def build_detailed_support_table_html(raw_event_data):
+    """
+    Trích xuất dữ liệu hỗ trợ chi tiết từ dữ liệu sự kiện thô lấy từ Session State
+    và xây dựng bảng HTML chuẩn UMP.
+    """
+    if not raw_event_data:
+        return ""
+
+    # Danh sách các trường hỗ trợ cần kiểm tra trong Session State
+    support_fields = {
+        "Số lượng bàn đón tiếp": "Số lượng bàn đón tiếp",
+        "Cần trải khăn bàn hội trường": "Cần trải khăn bàn hội trường",
+        "Số lượng lễ tân": "Số lượng lễ tân (người)",
+        "Số lượng bảng tên (bảng mica)": "Số lượng bảng tên mica",
+        "Số lượng bìa ký kết": "Số lượng bìa ký kết",
+        "Số lượng nước uống": "Số lượng nước uống (chai)",
+        "Số phần Teabreak": "Số phần Teabreak",
+        "Số lượng hoa để bàn": "Số lượng hoa để bàn",
+        "Số lượng hoa để bục phát biểu": "Số lượng hoa để bục phát biểu",
+        "Số lượng hoa bó để tặng": "Số lượng hoa bó để tặng",
+        "Số lượng quà tặng": "Số lượng quà tặng",
+        "Số lượng Brochure": "Số lượng Brochure",
+        "Số lượng khay bưng": "Số lượng khay bưng",
+        "Số lượng bandroll, standee cần in và thi công": "Bandroll/standee in & thi công",
+        "Số lượng Backdrop cần in và thi công": "Backdrop in & thi công",
+        "Cần gửi thư mời": "Cần gửi thư mời",
+        "Các yêu cầu khác (nếu có)": "Các yêu cầu khác"
+    }
+
+    detailed_rows = []
+    
+    # 1. Xử lý các trường hỗ trợ thông thường
+    for field_key, display_name in support_fields.items():
+        if field_key in raw_event_data:
+            val = raw_event_data[field_key]
+            
+            # Nếu là trường Cần/Không
+            if field_key in ["Cần trải khăn bàn hội trường", "Cần gửi thư mời"]:
+                if is_yes(val):
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td><td></td></tr>")
+            
+            # Nếu là trường văn bản/số lượng khác (Backdrop, Bandroll, Khác...)
+            elif field_key in ["Số lượng bandroll, standee cần in và thi công", "Số lượng Backdrop cần in và thi công", "Các yêu cầu khác (nếu có)"]:
+                txt = clean_text(val)
+                if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
+                     detailed_rows.append(f"<tr><td>{display_name}</td><td>1</td><td>{txt}</td></tr>")
+            
+            # Mặc định là trường Số lượng
+            else:
+                qty = count_value(val)
+                if qty > 0:
+                    orig_val = clean_text(val)
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td><td>{orig_val if orig_val != str(qty) else ''}</td></tr>")
+
+    # 2. Xử lý riêng trường Bảng điện tử (có nội dung chạy)
+    if "Cần chạy bảng điện tử" in raw_event_data:
+        if is_yes(raw_event_data["Cần chạy bảng điện tử"]):
+            content = clean_text(raw_event_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
+            detailed_rows.append(f"<tr><td>Chạy bảng điện tử</td><td>Có</td><td>{f'Nội dung: {content}' if content else ''}</td></tr>")
+
+    if not detailed_rows:
+        return "<p class='details-item' style='font-style: italic;'>Không tìm thấy nội dung hỗ trợ cụ thể.</p>"
+
+    # Xây dựng bảng HTML hoàn chỉnh
+    table_html = f"""
+    <div class="details-support-table-wrap">
+        <div class="details-support-title">🛠️ Nội dung hỗ trợ chi tiết</div>
+        <table class="ump-table">
+            <thead>
+                <tr>
+                    <th>Nội dung hỗ trợ</th>
+                    <th>Số lượng</th>
+                    <th>Chi tiết/Nội dung chạy</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(detailed_rows)}
+            </tbody>
+        </table>
+    </div>
+    """
+    return table_html
+
+# ==============================================================================
+# 4. KHỞI TẠO STATE & KHAI BÁO MENU
 # ==============================================================================
 df = load_data()
 today = datetime.today()
@@ -350,7 +480,7 @@ df_f = df if "Toàn trường" in selected or df.empty else df[df["donvi"].isin(
 # 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
-# --- DASHBOARD (ĐÃ SỬA LỖI CLICK XEM CHI TIẾT) ---
+# --- DASHBOARD (CÓ BẢNG CHI TIẾT HỖ TRỢ TRONG PANEL) ---
 if menu == "Dashboard":
     st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện - tháng {today.month} năm {today.year}</div>', unsafe_allow_html=True)
     if st.button("🔄 Làm mới dữ liệu OneDrive"):
@@ -370,35 +500,47 @@ if menu == "Dashboard":
 
         event_dates_for_stats.append(s)
         
+        # CHUẨN BỊ DỮ LIỆU ĐỂ HIỂN THỊ KHI NHẤN VÀO SỰ KIỆN
+        # Đưa toàn bộ dòng dữ liệu thô (raw row) vào extendedProps
+        event_raw_data = r.to_dict()
         events.append({
             "title": title, "start": start_str, "end": end_str,
             "backgroundColor": color, "borderColor": color, "textColor": "#111827",
+            # extendedProps chứa dữ liệu để hiển thị Panel
             "extendedProps": {
-                "event": r.get("event", ""),
-                "donvi": r.get("donvi", ""),
-                "location": location,
-                "time": start_str,
-                "support": clean_text(r.get("support", ""))
+                "display_data": {
+                    "event": r.get("event", ""),
+                    "donvi": r.get("donvi", ""),
+                    "location": location,
+                    "time": start_str,
+                    "support": clean_text(r.get("support", ""))
+                },
+                # Dữ liệu thô để trích xuất bảng hỗ trợ chi tiết
+                "raw_row_data": event_raw_data
             }
         })
 
-    # !!! PHẦN SỬA LỖI CHÍNH: LƯU LẠI STATE KHI CLICK !!!
-    # Cấu hình lịch, kết quả trả về được gán vào biến 'calendar_output'
+    # Cấu hình lịch
     calendar_output = calendar(
         events=events,
         options={"initialView": "dayGridMonth", "locale": "vi", "firstDay": 1, "height": "auto", "eventDisplay": "block"},
-        key="ump_calendar" # Gán key cố định để Streamlit nhận diện State
+        key="ump_calendar"
     )
 
-    # Kiểm tra xem người dùng có vừa nhấn vào sự kiện không
+    # Xử lý click sự kiện
     if calendar_output and "callback" in calendar_output and calendar_output["callback"] == "eventClick":
-        # Nếu có nhấn, lưu dữ liệu sự kiện vào Session State
+        # Lưu dữ liệu mở rộng vào Session State
         st.session_state.selected_event_details = calendar_output["eventClick"]["event"]["extendedProps"]
+        st.rerun()
 
-    # !!! HIỂN THỊ CHI TIẾT SỰ KIỆN TỪ SESSION STATE !!!
+    # !!! HIỂN THỊ CHI TIẾT SỰ KIỆN (CÓ BẢNG HỖ TRỢ CHI TIẾT) !!!
     if st.session_state.selected_event_details:
-        e = st.session_state.selected_event_details
-        st.markdown(f"""
+        data = st.session_state.selected_event_details
+        e = data["display_data"]
+        raw_data = data["raw_row_data"]
+        
+        # 1. Hiển thị thông tin cơ bản
+        details_html = f"""
         <div class="event-details-panel">
             <div class="details-title">📋 Chi tiết sự kiện đã chọn trên lịch</div>
             <div class="details-item"><span class="details-label">📌 Sự kiện:</span> {e.get("event", "")}</div>
@@ -406,9 +548,21 @@ if menu == "Dashboard":
             <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {e.get("location", "")}</div>
             <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {e.get("time", "")}</div>
             <div class="details-item"><span class="details-label">🛠 Hỗ trợ:</span> {e.get("support", "") or "Không yêu cầu"}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        # Nút để ẩn khối chi tiết
+        """
+        
+        # 2. Xử lý hiển thị bảng hỗ trợ chi tiết nếu "Hỗ trợ: CÓ"
+        if is_yes(e.get("support", "")):
+            # Gọi hàm xây dựng bảng HTML chi tiết
+            support_table_html = build_detailed_support_table_html(raw_data)
+            details_html += support_table_html
+            
+        # Đóng thẻ div panel
+        details_html += "</div>"
+        
+        # Vẽ Panel ra màn hình
+        st.markdown(details_html, unsafe_allow_html=True)
+        
+        # Nút đóng
         if st.button("✖️ Đóng xem chi tiết"):
             st.session_state.selected_event_details = None
             st.rerun()
@@ -421,7 +575,7 @@ if menu == "Dashboard":
     c2.metric("Tháng này", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm nay", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# Các trang menu khác giữ nguyên như cũ
+# Các trang menu khác (Báo cáo, Cảnh báo...) giữ nguyên
 elif menu == "Báo cáo":
     pass
 elif menu == "Cảnh báo trùng lịch":
