@@ -16,7 +16,7 @@ from io import BytesIO
 st.set_page_config(layout="wide")
 
 # ==============================================================================
-# 1. GIAO DIỆN & CSS (TỐI ƯU CHO MOBILE RESPONSIVE)
+# 1. GIAO DIỆN & CSS (TỐI ƯU TOÀN DIỆN CHO MOBILE RESPONSIVE)
 # ==============================================================================
 st.markdown("""
 <style>
@@ -38,10 +38,10 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label p {
 }
 
 /* CSS cơ bản */
-html, body { font-family: Arial, sans-serif; font-size:20px; color:#111827; }
-section[data-testid="stSidebar"] { width:255px !important; min-width:255px !important; max-width:255px !important; }
+html, body { font-family: Arial, sans-serif; font-size: 18px; color: #111827; }
+section[data-testid="stSidebar"] { width: 255px !important; min-width: 255px !important; max-width: 255px !important; }
 section[data-testid="stSidebar"] * { font-size: 13px !important; }
-.block-container { padding-top: 1rem; }
+.block-container { padding-top: 1rem; padding-left: 1rem; padding-right: 1rem; }
 
 div[data-baseweb="notification"] div, .stAlert p { font-size: 13px !important; line-height: 1.4 !important; }
 h1, h2, h3, h4, h5, h6, .stSubheader, .plotly .gtitle,
@@ -53,11 +53,11 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
     font-size: 14px !important; font-weight: 600 !important;
 }
 
-.table-title { font-size: 22px; font-weight: 900; color: #020617; margin-top: 18px; margin-bottom: 10px; letter-spacing: -0.2px; }
+.table-title { font-size: 20px; font-weight: 900; color: #020617; margin-top: 14px; margin-bottom: 10px; letter-spacing: -0.2px; }
 .ump-table-wrap { width: 100%; overflow-x: auto; margin-bottom: 10px; }
 .ump-table-wrap.compact { width: fit-content; max-width: 100%; }
 
-.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; }
+.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; width: 100%; }
 .ump-table th { background: #f1f5f9; color: #020617 !important; font-weight: 900; border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; white-space: nowrap; }
 .ump-table td { color: #020617 !important; font-weight: 650; border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: top; line-height: 1.35; }
 .ump-table.compact th, .ump-table.compact td { white-space: nowrap; }
@@ -65,7 +65,7 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 
 /* CSS Header cố định */
 .ump-fixed-header {
-    background: linear-gradient(90deg, #06145f, #0b2f8a); color: #ffffff; padding: 18px 24px; border-radius: 10px; margin: 0 0 22px 0;
+    background: linear-gradient(90deg, #06145f, #0b2f8a); color: #ffffff; padding: 18px 24px; border-radius: 10px; margin: 0 0 18px 0;
     box-shadow: 0 2px 8px rgba(0,0,0,0.18); display: flex; flex-direction: column; justify-content: center;
 }
 .ump-fixed-header .ump-vn { font-size: 22px; font-weight: 800; text-transform: uppercase; }
@@ -74,7 +74,7 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 
 /* CSS Panel chi tiết sự kiện khi chọn */
 .event-details-panel {
-    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 20px;
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 16px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .details-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
@@ -85,40 +85,62 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 /* CSS Nút làm mới lịch */
 .stButton>button { width: auto; font-size: 13px !important; }
 
+/* ==============================================================================
+   CSS TỐI ƯU MOBILE (MÀN HÌNH NHỎ) - TỰ ĐỘNG CO DÃN VỪA MÀN HÌNH
+   ============================================================================== */
 @media screen and (max-width: 768px) {
-    html, body { font-size: 14px !important; }
+    html, body { font-size: 13px !important; }
+    .block-container { padding-left: 6px !important; padding-right: 6px !important; padding-top: 0.5rem !important; }
+
     section[data-testid="stSidebar"] { width: 100% !important; max-width: 100% !important; }
     section[data-testid="stSidebar"] div[role="radiogroup"] label { width: 100% !important; min-width: 100% !important; }
 
-    .ump-fixed-header { padding: 10px 15px; margin-bottom: 15px; }
-    .ump-fixed-header .ump-vn { font-size: 13px; }
-    .ump-fixed-header .ump-en { font-size: 9px; margin-top: 2px; }
-    .ump-fixed-header .ump-app { font-size: 16px; margin-top: 8px; }
+    .ump-fixed-header { padding: 10px 12px; margin-bottom: 12px; border-radius: 6px; }
+    .ump-fixed-header .ump-vn { font-size: 12px !important; }
+    .ump-fixed-header .ump-en { font-size: 8px !important; margin-top: 2px; }
+    .ump-fixed-header .ump-app { font-size: 15px !important; margin-top: 6px; }
 
-    .table-title { font-size: 16px; font-weight: 800; margin-top: 10px; }
+    .table-title { font-size: 15px !important; font-weight: 800; margin-top: 8px; margin-bottom: 6px; }
 
-    div[data-testid="stVerticalBlock"] > div[style*="width"] .stButton>button {
-        width: 100% !important;  margin: 5px 0 !important;
-    }
-
-    .fc .fc-toolbar-title { font-size: 14px !important; font-weight: 700 !important; text-align: center !important; }
+    /* Thanh công cụ lịch FullCalendar trên Mobile */
     .fc .fc-toolbar {
-        display: flex !important; flex-direction: column !important; align-items: center !important; gap: 8px !important;
-        margin-top: 0 !important; padding: 5px 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 6px !important;
+        margin-bottom: 8px !important;
     }
     .fc .fc-toolbar-chunk {
-        display: flex !important; justify-content: center !important; flex-wrap: wrap !important; gap: 3px !important;
-        margin-bottom: 0 !important; width: 100% !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+    .fc .fc-toolbar-title {
+        font-size: 15px !important;
+        font-weight: 800 !important;
+        text-align: center !important;
+        padding: 2px 0 !important;
+        white-space: nowrap !important;
+    }
+    .fc .fc-button {
+        padding: 4px 10px !important;
+        font-size: 11px !important;
+        border-radius: 4px !important;
     }
     
-    .fc .fc-button { padding: 3px 8px !important; font-size: 11px !important; border-radius: 4px !important; }
-    .fc .fc-button-group > .fc-button { margin: 0 1px !important; }
-    .fc-col-header-cell-cushion, .fc-daygrid-day-number { font-size: 10px !important; padding: 2px !important; }
-    .fc-event-title, .fc-event-time { font-size: 9px !important; line-height: 1.1 !important; padding: 1px !important; }
-    .stError { font-size: 11px !important; padding: 5px !important; }
-    .event-details-panel { padding: 12px; margin-top: 10px; }
-    .details-title { font-size: 16px; }
-    .details-item { font-size: 14px; }
+    /* Ô ngày và sự kiện trên lịch */
+    .fc-col-header-cell-cushion { font-size: 11px !important; padding: 2px !important; }
+    .fc-daygrid-day-number { font-size: 11px !important; padding: 2px 4px !important; }
+    .fc-daygrid-event { margin: 1px 0 !important; }
+    .fc-event-title { font-size: 9px !important; line-height: 1.1 !important; white-space: normal !important; }
+
+    /* Panel chi tiết */
+    .event-details-panel { padding: 10px !important; margin-top: 10px !important; }
+    .details-title { font-size: 15px !important; }
+    .details-item { font-size: 13px !important; margin-bottom: 4px !important; }
+    .ump-table { font-size: 12px !important; }
+    .ump-table th, .ump-table td { padding: 4px 6px !important; }
 }
 </style>
 
