@@ -12,16 +12,17 @@ from io import BytesIO
 
 st.set_page_config(layout="wide")
 
-# !!! KHỞI TẠO STATE CỐ ĐỊNH !!!
+# ==============================================================================
+# !!! KHỞI TẠO STATE !!!
+# ==============================================================================
 if "selected_event_details" not in st.session_state:
     st.session_state.selected_event_details = None
 
 # ==============================================================================
-# 1. GIAO DIỆN & CSS (TỐI ƯU MOBILE & HIỂN THỊ CHI TIẾT)
+# 1. GIAO DIỆN & CSS
 # ==============================================================================
 st.markdown("""
 <style>
-/* CSS Sidebar */
 section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 8px !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
     width: 170px !important; min-width: 170px !important; max-width: 170px !important;
@@ -38,9 +39,8 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label p {
     color: #ffffff !important; font-size: 15px !important; font-weight: 700 !important; margin: 0 !important; opacity: 1 !important;
 }
 
-/* CSS cơ bản */
-html, body { font-family: Arial, sans-serif; font-size: 20px; color: #111827; }
-section[data-testid="stSidebar"] { width: 255px !important; min-width: 255px !important; max-width: 255px !important; }
+html, body { font-family: Arial, sans-serif; font-size:20px; color:#111827; }
+section[data-testid="stSidebar"] { width:255px !important; min-width:255px !important; max-width:255px !important; }
 section[data-testid="stSidebar"] * { font-size: 13px !important; }
 .block-container { padding-top: 1rem; }
 
@@ -70,34 +70,27 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 .ump-fixed-header .ump-en { font-size: 13px; font-weight: 600; text-transform: uppercase; margin-top: 4px; opacity: .95; }
 .ump-fixed-header .ump-app { font-size: 24px; font-weight: 800; margin-top: 14px; }
 
-/* CSS PANEL CHI TIẾT SỰ KIỆN KHI CHỌN */
 .event-details-panel {
     background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 20px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .details-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
-.details-item { font-size: 15px; color: #1e293b; margin-bottom: 6px; line-height: 1.4; word-break: break-word; }
-.details-label { font-weight: 700; color: #020617; }
-.details-support-title { font-size: 16px; font-weight: 700; color: #020617; margin-top: 14px; margin-bottom: 8px; }
-.details-support-table-wrap { width: 100%; overflow-x: auto; margin-bottom: 8px; }
-.bdt-row { margin-top: 10px; font-size: 15px; color: #1e293b; line-height: 1.4; word-break: break-word; }
+.details-item { font-size: 15px; color: #1e293b; margin-bottom: 6px; line-height: 1.4; }
+.details-label { font-weight: 600; color: #020617; }
 
-/* CSS TỰ ĐỘNG RESPONSIVE CHUẨN ĐIỆN THOẠI */
 @media screen and (max-width: 768px) {
-    .ump-fixed-header { padding: 12px 14px; margin-bottom: 12px; }
+    .ump-fixed-header { padding: 12px 16px; margin-bottom: 15px; }
     .ump-fixed-header .ump-vn { font-size: 14px; }
-    .ump-fixed-header .ump-en { font-size: 9px; margin-top: 2px; }
-    .ump-fixed-header .ump-app { font-size: 16px; margin-top: 6px; }
-    .block-container { padding: 0.4rem !important; }
-    .table-title { font-size: 16px; margin-top: 8px; }
-    .fc .fc-toolbar { flex-direction: column; gap: 6px; }
-    .fc .fc-toolbar-title { font-size: 14px !important; }
-    .event-details-panel { padding: 10px; margin-top: 10px; }
-    .details-title { font-size: 15px; margin-bottom: 8px; }
-    .details-item, .bdt-row { font-size: 13.5px; }
-    .details-support-title { font-size: 14px; margin-top: 10px; margin-bottom: 6px; }
-    .ump-table { font-size: 12.5px; }
-    .ump-table th, .ump-table td { padding: 5px 6px; }
+    .ump-fixed-header .ump-en { font-size: 10px; margin-top: 2px; }
+    .ump-fixed-header .ump-app { font-size: 17px; margin-top: 8px; }
+    .block-container { padding: 0.5rem; }
+    .table-title { font-size: 17px; margin-top: 10px; }
+    .fc .fc-toolbar-title { font-size: 15px !important; }
+    .event-details-panel { padding: 12px; margin-top: 10px; }
+    .details-title { font-size: 16px; }
+    .details-item { font-size: 14px; }
+    .ump-table { font-size: 13px; }
+    .ump-table th, .ump-table td { padding: 6px 8px; }
 }
 </style>
 
@@ -149,16 +142,6 @@ def event_color(index, key):
     digest = int(hashlib.md5(str(key).encode("utf-8")).hexdigest(), 16)
     return palette[(digest + index) % len(palette)]
 
-def wrap_label(text, width=28):
-    words, lines, line = str(text).split(), [], ""
-    for w in words:
-        if len(line + " " + w) <= width: line = (line + " " + w).strip()
-        else:
-            if line: lines.append(line)
-            line = w
-    if line: lines.append(line)
-    return "<br>".join(lines)
-
 def get_period_df(df_input, period):
     now = datetime.today()
     if period == "Tuần":
@@ -203,7 +186,7 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 # ==============================================================================
-# 3. KẾT NỐI ONEDRIVE GRAPH API - GIỮ NGUYÊN
+# 3. KẾT NỐI ONEDRIVE GRAPH API
 # ==============================================================================
 @st.cache_data(ttl=15)
 def load_data():
@@ -279,11 +262,6 @@ def save_onedrive_excel(df: pd.DataFrame) -> bool:
         st.error(f"❌ Lỗi xử lý ghi file: {e}")
         return False
 
-def parse_event_date(value):
-    if pd.isna(value) or not str(value).strip(): return pd.NaT
-    dt = pd.to_datetime(str(value).strip(), errors="coerce", dayfirst=False)
-    return dt if pd.notna(dt) else pd.to_datetime(str(value).strip(), errors="coerce", dayfirst=True)
-
 def process_raw_dataframe(df_raw):
     if df_raw.empty: return df_raw
     df = df_raw.copy()
@@ -326,15 +304,7 @@ def process_raw_dataframe(df_raw):
         df[col] = df[col].apply(clean_text)
     return df
 
-def keep_only_thong_nhat_for_calendar(df_input):
-    """Chỉ giữ lại sự kiện có ý kiến phê duyệt là 'Thống nhất' để lên lịch."""
-    if df_input is None or len(df_input) == 0: return df_input
-    df_tmp = df_input.copy()
-    approvals = df_tmp.apply(approval_text_from_row, axis=1)
-    return df_tmp[approvals.eq("Thống nhất") | approvals.str.startswith("Thống nhất:")].copy()
-
 def approval_text_from_row(row):
-    """Lấy ý kiến phê duyệt cuối cùng, ưu tiên ý kiến chi tiết nhất."""
     for c in row.index:
         c_norm = re.sub(r"\s+", " ", str(c)).strip()
         if ("Ý kiến" in c_norm and "Phòng Hành chính Tổng hợp" in c_norm) or c == "approval_opinion":
@@ -343,8 +313,14 @@ def approval_text_from_row(row):
                 return val
     return ""
 
+def keep_only_thong_nhat_for_calendar(df_input):
+    if df_input is None or len(df_input) == 0: return df_input
+    df_tmp = df_input.copy()
+    approvals = df_tmp.apply(approval_text_from_row, axis=1)
+    return df_tmp[approvals.eq("Thống nhất") | approvals.str.startswith("Thống nhất:")].copy()
+
 def build_approval_summary_table(df_input):
-    columns = ["Sự kiện", "Đơn vị", "Ngày giờ", "Địa điểm", "Hỗ trợ"]
+    columns = ["Sự kiện", "Đơn vị", "Ngày giờ", "Địa điểm", "Hỗ trợ", "Ý kiến phê duyệt"]
     if df_input is None or len(df_input) == 0: return pd.DataFrame(columns=columns)
     rows = []
     df_out = df_input.copy()
@@ -357,7 +333,8 @@ def build_approval_summary_table(df_input):
         rows.append({
             "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
             "Ngày giờ": ngay_gio, "Địa điểm": clean_text(r.get("location", "")),
-            "Hỗ trợ": clean_text(r.get("support", "")) or "Không"
+            "Hỗ trợ": clean_text(r.get("support", "")) or "Không",
+            "Ý kiến phê duyệt": approval_text_from_row(r) or "Chưa phê duyệt"
         })
     return pd.DataFrame(rows, columns=columns)
 
@@ -380,29 +357,26 @@ def build_support_table(df_input):
         for col, label in support_cols.items():
             if col in df_input.columns:
                 if col == "support_bang_dien_tu":
-                    val_bdt = clean_text(r.get(col, ""))
-                    if not val_bdt or val_bdt.upper() in ["KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]:
-                        qty = 0
-                    else:
-                        qty = 1
+                    val_bang = clean_text(r.get("support_bang_dien_tu", ""))
+                    content_bang = clean_text(r.get("Nội dung chạy bảng điện tử (nếu có)", ""))
+                    if is_yes(val_bang) or content_bang:
+                        has_detail = True
+                        rows.append({
+                            "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
+                            "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
+                            "Nội dung hỗ trợ": label, "Số lượng": 1, "Ghi chú/Giá trị gốc": content_bang
+                        })
                 else:
                     qty = count_value(r.get(col, ""))
-                    
-                if qty > 0:
-                    has_detail = True
-                    display_note = clean_text(r.get(col, ""))
-                    display_note = display_note if display_note != str(qty) else ""
-                    
-                    special_detail = ""
-                    if col == "support_bang_dien_tu" and "Nội dung chạy bảng điện tử (nếu có)" in df_input.columns:
-                        content = clean_text(r.get("Nội dung chạy bảng điện tử (nếu có)", ""))
-                        if content: special_detail = f" (Nội dung: {content})"
-                        
-                    rows.append({
-                        "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
-                        "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
-                        "Nội dung hỗ trợ": label, "Số lượng": qty, "Ghi chú/Giá trị gốc": f"{display_note}{special_detail}"
-                    })
+                    if qty > 0:
+                        has_detail = True
+                        display_note = clean_text(r.get(col, ""))
+                        display_note = display_note if display_note != str(qty) else ""
+                        rows.append({
+                            "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
+                            "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
+                            "Nội dung hỗ trợ": label, "Số lượng": qty, "Ghi chú/Giá trị gốc": display_note
+                        })
         if has_support_flag and not has_detail:
             rows.append({
                 "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
@@ -412,12 +386,7 @@ def build_support_table(df_input):
     return pd.DataFrame(rows)
 
 def build_detailed_support_table_html(raw_event_data_dictionary):
-    """
-    Nhận dữ liệu thô từ extendedProps, xây dựng bảng HTML 2 cột (bỏ cột Chi tiết),
-    riêng Bảng điện tử hiển thị thành 1 dòng riêng bên dưới bảng.
-    """
     raw_data = raw_event_data_dictionary
-
     support_fields = {
         "support_ban_don_tiep": "Số lượng bàn đón tiếp",
         "support_khan_ban": "Cần trải khăn bàn hội trường",
@@ -434,6 +403,7 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
         "support_khay_bung": "Số lượng khay bưng",
         "support_bandroll_standee": "Bandroll/standee in & thi công",
         "support_backdrop": "Backdrop in & thi công",
+        "support_bang_dien_tu": "Bảng điện tử",
         "support_thu_moi": "Cần gửi thư mời",
         "support_khac": "Các yêu cầu khác"
     }
@@ -442,32 +412,41 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
     for field_key, display_name in support_fields.items():
         if field_key in raw_data:
             val = raw_data[field_key]
-            qty = count_value(val)
-            if qty > 0:
-                detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td></tr>")
+            if field_key == "support_bang_dien_tu":
+                content = clean_text(raw_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
+                if is_yes(val) or content:
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>1</td><td>{content}</td></tr>")
             elif field_key in ["support_bandroll_standee", "support_backdrop", "support_khac"]:
                 txt = clean_text(val)
                 if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
-                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{txt}</td></tr>")
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td><td>{txt}</td></tr>")
+            else:
+                qty = count_value(val)
+                if qty > 0:
+                    orig_val = clean_text(val)
+                    display_note = orig_val if orig_val != str(qty) else ""
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td><td>{display_note}</td></tr>")
 
-    bang_dien_tu_html = ""
-    val_bdt = clean_text(raw_data.get("support_bang_dien_tu", ""))
-    noi_dung_bdt = clean_text(raw_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
-    
-    if (val_bdt and val_bdt.upper() not in ["KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]) or noi_dung_bdt:
-        bdt_content_display = noi_dung_bdt if noi_dung_bdt else (val_bdt if val_bdt.upper() not in ["CÓ", "CO", "YES", "TRUE", "1"] else "Có yêu cầu chạy")
-        bang_dien_tu_html = f'<div class="bdt-row"><b>Bảng điện tử:</b> {bdt_content_display}</div>'
-
-    if not detailed_rows and not bang_dien_tu_html:
+    if not detailed_rows:
         return "<p class='details-item' style='font-style: italic;'>Không tìm thấy nội dung hỗ trợ cụ thể.</p>"
 
-    table_part = ""
-    if detailed_rows:
-        rows_str = "".join(detailed_rows)
-        table_part = f'<table class="ump-table compact"><thead><tr><th>Nội dung hỗ trợ</th><th>Số lượng/Yêu cầu</th></tr></thead><tbody>{rows_str}</tbody></table>'
-
-    result_html = f'<div class="details-support-table-wrap"><div class="details-support-title">Nội dung hỗ trợ chi tiết</div>{table_part}{bang_dien_tu_html}</div>'
-    return result_html
+    return f"""
+    <div class="details-support-table-wrap">
+        <div class="details-support-title">🛠️ Nội dung hỗ trợ chi tiết</div>
+        <table class="ump-table compact">
+            <thead>
+                <tr>
+                    <th>Nội dung hỗ trợ</th>
+                    <th>Số lượng/Yêu cầu</th>
+                    <th>Chi tiết/Nội dung chạy</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(detailed_rows)}
+            </tbody>
+        </table>
+    </div>
+    """
 
 # ==============================================================================
 # 4. KHỞI TẠO STATE & KHAI BÁO MENU
@@ -475,7 +454,15 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
 df = load_data()
 today = datetime.today()
 
-menu = st.sidebar.radio("MENU", ["Dashboard", "Báo cáo", "Cảnh báo trùng lịch", "Thống kê hỗ trợ", "Truy vấn AI", "Sự kiện chờ phê duyệt"])
+menu = st.sidebar.radio("MENU", [
+    "Dashboard", 
+    "Đăng ký sự kiện", 
+    "Phê duyệt sự kiện", 
+    "Báo cáo", 
+    "Cảnh báo trùng lịch", 
+    "Thống kê hỗ trợ", 
+    "Truy vấn AI"
+])
 
 donvi_list = sorted(df["donvi"].dropna().unique()) if not df.empty else []
 selected = st.sidebar.multiselect("Chọn đơn vị", ["Toàn trường"] + list(donvi_list), default=["Toàn trường"])
@@ -487,7 +474,7 @@ df_f = df if "Toàn trường" in selected or df.empty else df[df["donvi"].isin(
 # 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
-# --- DASHBOARD ---
+# --- 1. DASHBOARD ---
 if menu == "Dashboard":
     st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện - tháng {today.month} năm {today.year}</div>', unsafe_allow_html=True)
     if st.button("🔄 Làm mới dữ liệu OneDrive"):
@@ -524,14 +511,7 @@ if menu == "Dashboard":
 
     calendar_output = calendar(
         events=events,
-        options={
-            "initialView": "dayGridMonth", 
-            "locale": "vi", 
-            "firstDay": 1, 
-            "height": "auto", 
-            "eventDisplay": "block",
-            "displayEventTime": False
-        },
+        options={"initialView": "dayGridMonth", "locale": "vi", "firstDay": 1, "height": "auto", "eventDisplay": "block"},
         key="ump_calendar"
     )
 
@@ -542,25 +522,22 @@ if menu == "Dashboard":
     
     if selected_event_props:
         props = selected_event_props
-        
-        details_html = (
-            f'<div class="event-details-panel">'
-            f'<div class="details-title">Chi tiết sự kiện đã chọn trên lịch</div>'
-            f'<div class="details-item"><span class="details-label">Sự kiện:</span> {props["panel_event_title"]}</div>'
-            f'<div class="details-item"><span class="details-label">Đơn vị:</span> {props["panel_donvi"]}</div>'
-            f'<div class="details-item"><span class="details-label">Địa điểm:</span> {props["panel_location"]}</div>'
-            f'<div class="details-item"><span class="details-label">Thời gian:</span> {props["panel_time_label"]}</div>'
-            f'<div class="details-item"><span class="details-label">Hỗ trợ:</span> {props["panel_support_text"] or "Không yêu cầu"}</div>'
-        )
+        details_html = f"""
+        <div class="event-details-panel">
+            <div class="details-title">📋 Chi tiết sự kiện đã chọn trên lịch</div>
+            <div class="details-item"><span class="details-label">📌 Sự kiện:</span> {props['panel_event_title']}</div>
+            <div class="details-item"><span class="details-label">🏢 Đơn vị:</span> {props['panel_donvi']}</div>
+            <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
+            <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
+            <div class="details-item"><span class="details-label">🛠 Hỗ trợ:</span> {props['panel_support_text'] or "Không yêu cầu"}</div>
+        """
         
         if is_yes(props['panel_support_text']):
             try:
-                raw_row_data_json_str = props['raw_row_data_json_string']
-                raw_row_data = json.loads(raw_row_data_json_str)
-                support_table_html = build_detailed_support_table_html(raw_row_data)
-                details_html += support_table_html
+                raw_row_data = json.loads(props['raw_row_data_json_string'])
+                details_html += build_detailed_support_table_html(raw_row_data)
             except Exception as ex:
-                details_html += f'<p class="details-item">❌ Lỗi giải nén dữ liệu hỗ trợ: {ex}</p>'
+                details_html += f"<p class='details-item'>❌ Lỗi giải nén dữ liệu: {ex}</p>"
             
         details_html += "</div>"
         st.markdown(details_html, unsafe_allow_html=True)
@@ -577,13 +554,175 @@ if menu == "Dashboard":
     c2.metric("Tháng này", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm nay", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
+# --- 2. ĐĂNG KÝ SỰ KIỆN ---
+elif menu == "Đăng ký sự kiện":
+    st.markdown('<div class="table-title">📝 Đăng ký Sự kiện Mới</div>', unsafe_allow_html=True)
+    with st.form("form_dang_ky_su_kien"):
+        c1, c2 = st.columns(2)
+        ten_sk = c1.text_input("Tên sự kiện (*)", placeholder="Nhập tên sự kiện")
+        don_vi = c2.text_input("Đơn vị phụ trách/tổ chức (*)", placeholder="Ví dụ: Phòng HCTH, Khoa Dược...")
+        
+        c3, c4 = st.columns(2)
+        ngay_bd = c3.date_input("Ngày tổ chức (*)", value=datetime.today())
+        ngay_kt = c4.date_input("Ngày kết thúc", value=datetime.today())
+        
+        c5, c6 = st.columns(2)
+        gio_bd = c5.text_input("Giờ bắt đầu", placeholder="Ví dụ: 08:00 hoặc 8h")
+        gio_kt = c6.text_input("Giờ kết thúc", placeholder="Ví dụ: 11:30 hoặc 11h30")
+        
+        dia_diem = st.text_input("Địa điểm tổ chức", placeholder="Ví dụ: Hội trường A, Phòng họp 1...")
+        
+        st.markdown("---")
+        st.markdown("**🛠️ Đề xuất hỗ trợ từ phòng Hành chính Tổng hợp:**")
+        co_ho_tro = st.checkbox("Có yêu cầu hỗ trợ", value=False)
+        
+        col_s1, col_s2, col_s3 = st.columns(3)
+        ban_don_tiep = col_s1.text_input("Số lượng bàn đón tiếp")
+        khan_ban = col_s2.selectbox("Cần trải khăn bàn hội trường", ["Không", "Có"])
+        le_tan = col_s3.text_input("Số lượng lễ tân")
+        
+        bang_ten = col_s1.text_input("Số lượng bảng tên mica")
+        bia_ky_ket = col_s2.text_input("Số lượng bìa ký kết")
+        nuoc_uong = col_s3.text_input("Số lượng nước uống")
+        
+        teabreak = col_s1.text_input("Số phần Teabreak")
+        hoa_ban = col_s2.text_input("Số lượng hoa để bàn")
+        hoa_buc = col_s3.text_input("Số lượng hoa bục phát biểu")
+        
+        hoa_tang = col_s1.text_input("Số lượng hoa bó tặng")
+        qua_tang = col_s2.text_input("Số lượng quà tặng")
+        brochure = col_s3.text_input("Số lượng Brochure")
+        
+        khay_bung = col_s1.text_input("Số lượng khay bưng")
+        bandroll = col_s2.text_input("Bandroll/Standee cần in & thi công")
+        backdrop = col_s3.text_input("Backdrop cần in & thi công")
+        
+        bang_dien_tu = col_s1.selectbox("Cần chạy bảng điện tử", ["Không", "Có"])
+        noi_dung_bdt = col_s2.text_area("Nội dung chạy bảng điện tử (nếu có)")
+        thu_moi = col_s3.selectbox("Cần gửi thư mời", ["Không", "Có"])
+        
+        yeu_cau_khac = st.text_area("Các yêu cầu khác (nếu có)")
+        
+        submitted = st.form_submit_button("🚀 Gửi đăng ký sự kiện")
+        if submitted:
+            if not ten_sk.strip() or not don_vi.strip():
+                st.error("❌ Vui lòng điền đầy đủ Tên sự kiện và Đơn vị tổ chức!")
+            else:
+                new_row = {
+                    "Tên sự kiện": ten_sk.strip(),
+                    "Đơn vị phụ trách/ tổ chức": don_vi.strip(),
+                    "Ngày tổ chức": ngay_bd.strftime("%Y-%m-%d"),
+                    "Ngày kết thúc": ngay_kt.strftime("%Y-%m-%d"),
+                    "Giờ bắt đầu": gio_bd.strip(),
+                    "Giờ kết thúc": gio_kt.strip(),
+                    "Địa điểm tổ chức": dia_diem.strip(),
+                    "Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp": "CÓ" if co_ho_tro else "KHÔNG",
+                    "Số lượng bàn đón tiếp": ban_don_tiep.strip(),
+                    "Cần trải khăn bàn hội trường": khan_ban,
+                    "Số lượng lễ tân": le_tan.strip(),
+                    "Số lượng bảng tên (bảng mica)": bang_ten.strip(),
+                    "Số lượng bìa ký kết": bia_ky_ket.strip(),
+                    "Số lượng nước uống": nuoc_uong.strip(),
+                    "Số phần Teabreak": teabreak.strip(),
+                    "Số lượng hoa để bàn": hoa_ban.strip(),
+                    "Số lượng hoa để bục phát biểu": hoa_buc.strip(),
+                    "Số lượng hoa bó để tặng": hoa_tang.strip(),
+                    "Số lượng quà tặng": qua_tang.strip(),
+                    "Số lượng Brochure": brochure.strip(),
+                    "Số lượng khay bưng": khay_bung.strip(),
+                    "Số lượng bandroll, standee cần in và thi công": bandroll.strip(),
+                    "Số lượng Backdrop cần in và thi công": backdrop.strip(),
+                    "Cần chạy bảng điện tử": bang_dien_tu,
+                    "Nội dung chạy bảng điện tử (nếu có)": noi_dung_bdt.strip(),
+                    "Cần gửi thư mời": thu_moi,
+                    "Các yêu cầu khác (nếu có)": yeu_cau_khac.strip(),
+                    "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)": ""
+                }
+                df_to_save = df.copy() if not df.empty else pd.DataFrame()
+                df_to_save = pd.concat([df_to_save, pd.DataFrame([new_row])], ignore_index=True)
+                if save_onedrive_excel(df_to_save):
+                    st.success("🎉 Đăng ký sự kiện thành công và đã lưu vào hệ thống!")
+                    st.cache_data.clear()
+                    st.rerun()
+
+# --- 3. PHÊ DUYỆT SỰ KIỆN ---
+elif menu == "Phê duyệt sự kiện":
+    st.markdown('<div class="table-title">⚖️ Phê duyệt Sự kiện (Dành cho Quản trị viên)</div>', unsafe_allow_html=True)
+    if st.button("🔄 Tải lại danh sách"):
+        st.cache_data.clear()
+        st.rerun()
+        
+    if df.empty:
+        st.info("Chưa có dữ liệu sự kiện.")
+    else:
+        approvals = df.apply(approval_text_from_row, axis=1)
+        df_pending = df[~approvals.eq("Thống nhất") & ~approvals.str.startswith("Thống nhất:")].copy()
+        
+        if df_pending.empty:
+            st.success("✅ Hiện không có sự kiện nào đang chờ phê duyệt.")
+        else:
+            st.write(f"Đang có **{len(df_pending)}** sự kiện chờ xử lý:")
+            for idx, r in df_pending.iterrows():
+                with st.expander(f"📌 {r['event']} - {r['donvi']} ({r['start'].strftime('%d/%m/%Y') if pd.notna(r['start']) else ''})"):
+                    st.write(f"**Thời gian:** {r.get('start_time', '')} - {r.get('end_time', '')}")
+                    st.write(f"**Địa điểm:** {r.get('location', 'Chưa rõ')}")
+                    st.write(f"**Yêu cầu hỗ trợ:** {r.get('support', 'Không')}")
+                    
+                    y_kien = st.text_input("Ý kiến phê duyệt:", value=r.get("approval_opinion", ""), key=f"yk_{idx}")
+                    col_b1, col_b2 = st.columns(2)
+                    
+                    if col_b1.button("✅ Thống nhất (Duyệt)", key=f"btn_ok_{idx}"):
+                        opinion_str = f"Thống nhất: {y_kien.strip()}" if y_kien.strip() else "Thống nhất"
+                        df_to_save = df.copy()
+                        df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
+                        if save_onedrive_excel(df_to_save):
+                            st.success(f"Đã duyệt sự kiện: {r['event']}")
+                            st.cache_data.clear()
+                            st.rerun()
+                            
+                    if col_b2.button("❌ Không thống nhất", key=f"btn_no_{idx}"):
+                        opinion_str = f"Không thống nhất: {y_kien.strip()}" if y_kien.strip() else "Không thống nhất"
+                        df_to_save = df.copy()
+                        df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
+                        if save_onedrive_excel(df_to_save):
+                            st.warning(f"Đã từ chối sự kiện: {r['event']}")
+                            st.cache_data.clear()
+                            st.rerun()
+
+# --- 4. BÁO CÁO ---
 elif menu == "Báo cáo":
-    pass
+    period = st.radio("Xem theo", ["Tuần", "Tháng", "Năm"], horizontal=True)
+    df_p, lbl, _, _ = get_period_df(df_f, period)
+    show_table_with_download(f"Báo cáo sự kiện ({lbl})", build_approval_summary_table(df_p), f"Bao_cao_su_kien_{period}.xlsx")
+
+# --- 5. CẢNH BÁO TRÙNG LỊCH ---
 elif menu == "Cảnh báo trùng lịch":
-    pass
+    df_app = keep_only_thong_nhat_for_calendar(df_f)
+    conflicts = []
+    for i in range(len(df_app)):
+        for j in range(i + 1, len(df_app)):
+            r1, r2 = df_app.iloc[i], df_app.iloc[j]
+            if r1["location"] and r1["location"] == r2["location"]:
+                if max(r1["full_start"], r2["full_start"]) < min(r1["full_end"], r2["full_end"]):
+                    conflicts.append({
+                        "Địa điểm": r1["location"],
+                        "Sự kiện 1": r1["event"],
+                        "Thời gian 1": r1["full_start"].strftime("%d/%m/%Y %H:%M"),
+                        "Sự kiện 2": r2["event"],
+                        "Thời gian 2": r2["full_start"].strftime("%d/%m/%Y %H:%M")
+                    })
+    show_table_with_download("Cảnh báo trùng lịch địa điểm", pd.DataFrame(conflicts), "Canh_bao_trung_lich.xlsx")
+
+# --- 6. THỐNG KÊ HỖ TRỢ ---
 elif menu == "Thống kê hỗ trợ":
-    pass
+    period = st.radio("Xem theo", ["Tuần", "Tháng", "Năm"], horizontal=True, key="tk_period")
+    df_p, lbl, _, _ = get_period_df(df_f, period)
+    df_sup = build_support_table(df_p)
+    show_table_with_download(f"Thống kê chi tiết hỗ trợ ({lbl})", collapse_repeated_support_rows(df_sup), f"Thong_ke_ho_tro_{period}.xlsx")
+
+# --- 7. TRUY VẤN AI ---
 elif menu == "Truy vấn AI":
-    pass
-elif menu == "Sự kiện chờ phê duyệt":
-    pass
+    st.markdown('<div class="table-title">🤖 Trợ lý AI Phân tích Sự kiện</div>', unsafe_allow_html=True)
+    user_q = st.text_input("Nhập câu hỏi cần tra cứu hoặc thống kê sự kiện:")
+    if user_q:
+        st.info("Tính năng truy vấn sự kiện dựa trên dữ liệu Excel đang được xử lý.")
