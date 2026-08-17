@@ -76,7 +76,8 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 }
 .details-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
 .details-item { font-size: 15px; color: #1e293b; margin-bottom: 6px; line-height: 1.4; }
-.details-label { font-weight: 600; color: #020617; }
+.details-label { font-weight: 700; color: #020617; }
+.details-support-title { font-size: 16px; font-weight: 700; color: #020617; margin-top: 14px; margin-bottom: 8px; }
 
 @media screen and (max-width: 768px) {
     .ump-fixed-header { padding: 12px 16px; margin-bottom: 15px; }
@@ -359,19 +360,27 @@ def build_support_table(df_input):
                 if col == "support_bang_dien_tu":
                     val_bang = clean_text(r.get("support_bang_dien_tu", ""))
                     content_bang = clean_text(r.get("Nội dung chạy bảng điện tử (nếu có)", ""))
+                    if not content_bang and val_bang and val_bang.upper() not in ["CÓ", "CO", "YES", "Y", "TRUE", "1", "KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]:
+                        content_bang = val_bang
                     if is_yes(val_bang) or content_bang:
                         has_detail = True
                         rows.append({
                             "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
                             "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
-                            "Nội dung hỗ trợ": label, "Số lượng": 1, "Ghi chú/Giá trị gốc": content_bang
+                            "Nội dung hỗ trợ": label, "Số lượng": 1, "Ghi chú/Giá trị gốc": f"<b>{content_bang}</b>" if content_bang else ""
                         })
                 else:
                     qty = count_value(r.get(col, ""))
                     if qty > 0:
                         has_detail = True
-                        display_note = clean_text(r.get(col, ""))
-                        display_note = display_note if display_note != str(qty) else ""
+                        orig_val = clean_text(r.get(col, ""))
+                        display_note = orig_val
+                        try:
+                            if float(orig_val) == qty or orig_val == str(qty):
+                                display_note = ""
+                        except Exception:
+                            if orig_val.upper() in ["CÓ", "CO", "YES", "Y", "TRUE", "1"]:
+                                display_note = ""
                         rows.append({
                             "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
                             "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
@@ -387,6 +396,7 @@ def build_support_table(df_input):
 
 def build_detailed_support_table_html(raw_event_data_dictionary):
     raw_data = raw_event_data_dictionary
+
     support_fields = {
         "support_ban_don_tiep": "Số lượng bàn đón tiếp",
         "support_khan_ban": "Cần trải khăn bàn hội trường",
@@ -403,36 +413,41 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
         "support_khay_bung": "Số lượng khay bưng",
         "support_bandroll_standee": "Bandroll/standee in & thi công",
         "support_backdrop": "Backdrop in & thi công",
-        "support_bang_dien_tu": "Bảng điện tử",
         "support_thu_moi": "Cần gửi thư mời",
         "support_khac": "Các yêu cầu khác"
     }
 
     detailed_rows = []
+    
     for field_key, display_name in support_fields.items():
         if field_key in raw_data:
             val = raw_data[field_key]
-            if field_key == "support_bang_dien_tu":
-                content = clean_text(raw_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
-                if is_yes(val) or content:
-                    detailed_rows.append(f"<tr><td>{display_name}</td><td>1</td><td>{content}</td></tr>")
-            elif field_key in ["support_bandroll_standee", "support_backdrop", "support_khac"]:
+            
+            if field_key in ["support_bandroll_standee", "support_backdrop", "support_khac"]:
                 txt = clean_text(val)
                 if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
-                    detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td><td>{txt}</td></tr>")
+                    display_note = "" if txt.upper() in ["CÓ", "CO", "YES", "Y", "TRUE", "1"] else txt
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td><td>{display_note}</td></tr>")
+            
             else:
                 qty = count_value(val)
                 if qty > 0:
                     orig_val = clean_text(val)
-                    display_note = orig_val if orig_val != str(qty) else ""
+                    display_note = orig_val
+                    try:
+                        if float(orig_val) == qty or orig_val == str(qty):
+                            display_note = ""
+                    except Exception:
+                        if orig_val.upper() in ["CÓ", "CO", "YES", "Y", "TRUE", "1"]:
+                            display_note = ""
                     detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td><td>{display_note}</td></tr>")
 
     if not detailed_rows:
-        return "<p class='details-item' style='font-style: italic;'>Không tìm thấy nội dung hỗ trợ cụ thể.</p>"
+        return ""
 
     return f"""
     <div class="details-support-table-wrap">
-        <div class="details-support-title">🛠️ Nội dung hỗ trợ chi tiết</div>
+        <div class="details-support-title"><strong>Nội dung hỗ trợ chi tiết</strong></div>
         <table class="ump-table compact">
             <thead>
                 <tr>
@@ -511,7 +526,14 @@ if menu == "Dashboard":
 
     calendar_output = calendar(
         events=events,
-        options={"initialView": "dayGridMonth", "locale": "vi", "firstDay": 1, "height": "auto", "eventDisplay": "block"},
+        options={
+            "initialView": "dayGridMonth", 
+            "locale": "vi", 
+            "firstDay": 1, 
+            "height": "auto", 
+            "eventDisplay": "block",
+            "displayEventTime": False
+        },
         key="ump_calendar"
     )
 
@@ -522,6 +544,17 @@ if menu == "Dashboard":
     
     if selected_event_props:
         props = selected_event_props
+        raw_row_data = {}
+        try:
+            raw_row_data = json.loads(props['raw_row_data_json_string'])
+        except Exception:
+            pass
+
+        content_bang_dien_tu = clean_text(raw_row_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
+        val_bang_dt = clean_text(raw_row_data.get("support_bang_dien_tu", ""))
+        if not content_bang_dien_tu and val_bang_dt and val_bang_dt.upper() not in ["CÓ", "CO", "YES", "Y", "TRUE", "1", "KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]:
+            content_bang_dien_tu = val_bang_dt
+
         details_html = f"""
         <div class="event-details-panel">
             <div class="details-title">📋 Chi tiết sự kiện đã chọn trên lịch</div>
@@ -529,15 +562,14 @@ if menu == "Dashboard":
             <div class="details-item"><span class="details-label">🏢 Đơn vị:</span> {props['panel_donvi']}</div>
             <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
             <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
-            <div class="details-item"><span class="details-label">🛠 Hỗ trợ:</span> {props['panel_support_text'] or "Không yêu cầu"}</div>
+            <div class="details-item"><strong>Hỗ trợ:</strong> {props['panel_support_text'] or "Không yêu cầu"}</div>
         """
         
+        if content_bang_dien_tu:
+            details_html += f'<div class="details-item"><strong>Nội dung chạy bảng điện tử:</strong> <strong>{content_bang_dien_tu}</strong></div>'
+
         if is_yes(props['panel_support_text']):
-            try:
-                raw_row_data = json.loads(props['raw_row_data_json_string'])
-                details_html += build_detailed_support_table_html(raw_row_data)
-            except Exception as ex:
-                details_html += f"<p class='details-item'>❌ Lỗi giải nén dữ liệu: {ex}</p>"
+            details_html += build_detailed_support_table_html(raw_row_data)
             
         details_html += "</div>"
         st.markdown(details_html, unsafe_allow_html=True)
@@ -573,7 +605,7 @@ elif menu == "Đăng ký sự kiện":
         dia_diem = st.text_input("Địa điểm tổ chức", placeholder="Ví dụ: Hội trường A, Phòng họp 1...")
         
         st.markdown("---")
-        st.markdown("**🛠️ Đề xuất hỗ trợ từ phòng Hành chính Tổng hợp:**")
+        st.markdown("**Đề xuất hỗ trợ từ phòng Hành chính Tổng hợp:**")
         co_ho_tro = st.checkbox("Có yêu cầu hỗ trợ", value=False)
         
         col_s1, col_s2, col_s3 = st.columns(3)
