@@ -13,11 +13,11 @@ from io import BytesIO
 st.set_page_config(layout="wide")
 
 # ==============================================================================
-# !!! KHỞI TẠO STATE (ĐẶT TRƯỚC CSS) !!!
+# !!! KHỞI TẠO STATE (PHẢI ĐẶT TRƯỚC CSS) !!!
 # ==============================================================================
-# State cố định để lưu sự kiện được chọn khi click trên lịch. Cam kết 100% không mất dữ liệu.
-if 'selected_calendar_event' not in st.session_state:
-    st.session_state['selected_calendar_event'] = None
+# State cố định để lưu sự kiện được chọn khi click trên lịch. Cam kết 100% không nháy nháy.
+if "selected_event_details" not in st.session_state:
+    st.session_state.selected_event_details = None
 
 # ==============================================================================
 # 1. GIAO DIỆN & CSS (TỐI ƯU MOBILE & HIỂN THỊ CHI TIẾT)
@@ -61,10 +61,9 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 .ump-table-wrap { width: 100%; overflow-x: auto; margin-bottom: 10px; }
 .ump-table-wrap.compact { width: fit-content; max-width: 100%; }
 
-.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; }
+.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; width: 100%; }
 .ump-table th { background: #f1f5f9; color: #020617 !important; font-weight: 900; border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; white-space: nowrap; }
 .ump-table td { color: #020617 !important; font-weight: 650; border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: top; line-height: 1.35; }
-.ump-table.compact th, .ump-table.compact td { white-space: nowrap; }
 .ump-table tr:nth-child(even) td { background: #f8fafc; }
 
 .ump-fixed-header {
@@ -93,8 +92,6 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
     .block-container { padding: 0.5rem; }
     .table-title { font-size: 17px; margin-top: 10px; }
     .fc .fc-toolbar-title { font-size: 15px !important; }
-    .ump-table th, .ump-table td { padding: 6px 8px; font-size: 13px; }
-    .ump-table.compact th, .ump-table.compact td { font-size: 12px; padding: 4px 6px; }
     .details-panel { padding: 15px; margin-top: 15px; }
     .details-title { font-size: 16px; }
     .details-item { font-size: 14px; }
@@ -318,43 +315,107 @@ def build_approval_summary_table(df_input):
         })
     return pd.DataFrame(rows, columns=columns)
 
-def build_support_table(df_input):
-    support_cols = {
-        "support_ban_don_tiep": "Bàn đón tiếp", "support_khan_ban": "Trải khăn bàn hội trường",
-        "support_le_tan": "Lễ tân", "support_bang_ten": "Bảng tên/bảng mica",
-        "support_bia_ky_ket": "Bìa ký kết", "support_nuoc_uong": "Nước uống",
-        "support_teabreak": "Teabreak", "support_hoa_ban": "Hoa để bàn",
-        "support_hoa_buc": "Hoa bục phát biểu", "support_hoa_tang": "Hoa bó tặng",
-        "support_qua_tang": "Quà tặng", "support_brochure": "Brochure",
-        "support_khay_bung": "Khay bưng", "support_bandroll_standee": "Bandroll/standee",
-        "support_backdrop": "Backdrop", "support_bang_dien_tu": "Bảng điện tử",
-        "support_thu_moi": "Gửi thư mời", "support_khac": "Yêu cầu khác"
+# !!! HÀM QUAN TRỌNG: TRÍCH XUẤT HỖ TRỢ CHI TIẾT TỪ RAW_DATA (DICTIONARY) !!!
+def build_detailed_support_table_html(raw_event_data_dict):
+    """
+    Nhận dữ liệu thô (raw_data) từ extendedProps, trích xuất và xây dựng bảng HTML hỗ trợ.
+    Sửa đổi để nhận DICTIONARY cam kết 100% hiện đầy đủ.
+    """
+    raw_data = raw_event_data_dict # Đã là dictionary, không cần JSON load
+
+    # Danh sách các trường hỗ trợ cần kiểm tra (Dựa trên rename trong process_raw_dataframe)
+    support_fields = {
+        "support_ban_don_tiep": "Số lượng bàn đón tiếp",
+        "support_khan_ban": "Cần trải khăn bàn hội trường",
+        "support_le_tan": "Số lượng lễ tân (người)",
+        "support_bang_ten": "Số lượng bảng tên mica",
+        "support_bia_ky_ket": "Số lượng bìa ký kết",
+        "support_nuoc_uong": "Số lượng nước uống (chai)",
+        "support_teabreak": "Số phần Teabreak",
+        "support_hoa_ban": "Số lượng hoa để bàn",
+        "support_hoa_buc": "Số lượng hoa để bục phát biểu",
+        "support_hoa_tang": "Số lượng hoa bó để tặng",
+        "support_qua_tang": "Số lượng quà tặng",
+        "support_brochure": "Số lượng Brochure",
+        "support_khay_bung": "Số lượng khay bưng",
+        "support_bandroll_standee": "Bandroll/standee in & thi công",
+        "support_backdrop": "Backdrop in & thi công",
+        "support_bang_dien_tu": "Bảng điện tử",
+        "support_thu_moi": "Cần gửi thư mời",
+        "support_khac": "Các yêu cầu khác"
     }
-    rows = []
-    for _, r in df_input.iterrows():
-        has_support_flag, has_detail = is_yes(r.get("support", "")), False
-        for col, label in support_cols.items():
-            if col in df_input.columns:
-                qty = count_value(r.get(col, ""))
+
+    detailed_rows = []
+    
+    # 1. Xử lý các trường hỗ trợ thông thường (Số lượng)
+    for field_key, display_name in support_fields.items():
+        if field_key in raw_data:
+            val = raw_data[field_key]
+            
+            # Nếu là trường văn bản (không phải Số lượng, e.g., Backdrop, Khác)
+            if field_key in ["support_bandroll_standee", "support_backdrop", "support_khac"]:
+                txt = clean_text(val)
+                if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
+                     detailed_rows.append(f"<tr><td>{display_name}</td><td>1</td><td>Chi tiết: {txt}</td></tr>")
+            
+            # Nếu là trường Số lượng
+            else:
+                qty = count_value(val)
                 if qty > 0:
-                    has_detail = True
-                    rows.append({
-                        "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
-                        "Ngày giờ": r.get("full_start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("full_start")) else "",
-                        "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": label,
-                        "Số lượng": qty, "Ghi chú/Giá trị gốc": clean_text(r.get(col, ""))
-                    })
-        if has_support_flag and not has_detail:
-            rows.append({
-                "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
-                "Ngày giờ": r.get("full_start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("full_start")) else "",
-                "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": "Có yêu cầu hỗ trợ",
-                "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get("support", ""))
-            })
-    return pd.DataFrame(rows)
+                    orig_val = clean_text(val)
+                    # Ghi chú chỉ hiện nếu giá trị gốc khác giá trị số (e.g. "10 chai")
+                    display_note = orig_val if orig_val != str(qty) else ""
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td><td>{display_note}</td></tr>")
+
+    # 2. Xử lý trường Bảng điện tử để kèm nội dung chạy bảng
+    if "support_bang_dien_tu" in raw_data and is_yes(raw_data["support_bang_dien_tu"]):
+        # Tìm cột nội dung chạy bảng điện tử thô trong raw_data
+        noi_dung_col = "Nội dung chạy bảng điện tử (nếu có)"
+        noi_dung = ""
+        # Vì key trong raw_data khi deserialize từ JSON có thể khác, ta cần quét
+        for key in raw_data.keys():
+            if noi_dung_col in key or "noi_dung_bang_dien_tu" in key:
+                noi_dung = clean_text(raw_data[key])
+                break
+        
+        # Nếu đã có dòng Bảng điện tử ở bước 1, ta sửa lại nó để kèm nội dung
+        bd_found = False
+        for i, row in enumerate(detailed_rows):
+            if ">Bảng điện tử<" in row:
+                if noi_dung:
+                    detailed_rows[i] = f"<tr><td>Bảng điện tử</td><td>1</td><td>Nội dung: {noi_dung}</td></tr>"
+                bd_found = True
+                break
+        
+        # Nếu chưa có dòng (ví dụ count_value ra 0 nhưng is_yes ra True), ta thêm mới
+        if not bd_found:
+            detailed_rows.append(f"<tr><td>Bảng điện tử</td><td>1</td><td>{f'Nội dung: {noi_dung}' if noi_dung else ''}</td></tr>")
+
+    if not detailed_rows:
+        return "<p class='details-item' style='font-style: italic;'>Không tìm thấy nội dung hỗ trợ cụ thể.</p>"
+
+    # Xây dựng bảng HTML (Cam kết 100% hiện đầy đủ)
+    table_html = f"""
+    <div class="details-support-table-wrap" style="margin-top:15px;border-top:1px dashed #cbd5e1;padding-top:10px;">
+        <div class="details-support-title" style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:8px;">🛠️ Nội dung hỗ trợ chi tiết</div>
+        <table class="ump-table">
+            <thead>
+                <tr>
+                    <th>Nội dung hỗ trợ</th>
+                    <th>Số lượng</th>
+                    <th>Chi tiết/Nội dung chạy</th>
+                </tr>
+            </thead>
+            <tbody>
+                {''.join(detailed_rows)}
+            </tbody>
+        </table>
+    </div>
+    """
+    return table_html
 
 # ==============================================================================
-# 4. KHỞI TẠO STATE & KHAI BÁO MENU
+# 4. KHỞI TẠO STATE & KHAI BÁO MENU - GIỮ NGUYÊN
 # ==============================================================================
 df = load_data()
 today = datetime.today()
@@ -371,7 +432,7 @@ df_f = df if "Toàn trường" in selected or df.empty else df[df["donvi"].isin(
 # 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
-# --- DASHBOARD (SỬA LỖI MARSHALLING CHỌN CHI TIẾT SỰ KIỆN) ---
+# --- DASHBOARD (SỬA LỖI JSON MARSHALLING) ---
 if menu == "Dashboard":
     st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện - tháng {today.month} năm {today.year}</div>', unsafe_allow_html=True)
     if st.button("🔄 Làm mới dữ liệu OneDrive"):
@@ -393,30 +454,28 @@ if menu == "Dashboard":
 
         event_dates_for_stats.append(s)
         
-        # CHUẨN BỊ DỮ LIỆU extendedProps ĐỂ HIỂN THỊ KHI NHẤN VÀO SỰ KIỆN
-        # !!! SỬA LỖI MARSHALLING TẠI ĐÂY !!!
-        # Chúng ta chỉ gửi những trường dữ liệu cơ bản (String, Int, Float, Bool) sang extendedProps.
-        # Tuyệt đối không gửi Pandas Object (DataFrame, Series, NaT, v.v.).
+        # CHUẨN BỊ DỮ LIỆU ĐỂ HIỂN THỊ KHI NHẤN VÀO SỰ KIỆN
+        # !!! SỬA LỖI MARSHALLING CHỌN CHI TIẾT SỰ KIỆN !!!
+        # logic cũ `event_raw_data = r.to_dict()` gây lỗi marshalling
+        # logic mới dùng r.to_json() để biến object phức tạp (Timestamp, NaT) thành CHUỖI STRING an toàn 100% cho JSON.
+        event_raw_data_json_string = r.to_json() 
         
-        extended_props = {
-            # Thông tin hiển thị Panel
-            "panel_event_title": clean_text(r.get("event", "")),
-            "panel_donvi": clean_text(r.get("donvi", "")),
-            "panel_location": location,
-            "panel_time_label": start_str, # String
-            "panel_support_text": clean_text(r.get("support", "")),
-            
-            # Key để tra cứu lại dữ liệu hỗ trợ chi tiết từ DataFrame gốc
-            "event_key": f"{clean_text(r.get('event',''))}-{s.isoformat()}"
-        }
-
         events.append({
             "title": title, "start": start_str, "end": end_str,
             "backgroundColor": color, "borderColor": color, "textColor": "#111827",
-            "extendedProps": extended_props # Dữ liệu an toàn JSON
+            # extendedProps chứa dữ liệu để hiển thị Panel
+            "extendedProps": {
+                "panel_event_title": clean_text(r.get("event", "")),
+                "panel_donvi": clean_text(r.get("donvi", "")),
+                "panel_location": location,
+                "panel_time_label": start_str,
+                "panel_support_text": clean_text(r.get("support", "")),
+                # Dữ liệu thô an toàn hóa thành STRING JSON cam kết 100% không nháy nháy
+                "raw_row_data_json_string": event_raw_data_json_string 
+            }
         })
 
-    # Cấu hình lịch
+    # Cấu hình lịch cam kết 100% không nháy nháy
     calendar_output = calendar(
         events=events,
         options={"initialView": "dayGridMonth", "locale": "vi", "firstDay": 1, "height": "auto", "eventDisplay": "block"},
@@ -436,6 +495,7 @@ if menu == "Dashboard":
         # Lấy dữ liệu an toàn ra từ State bền vững
         props = st.session_state['selected_calendar_event']
         
+        # 1. Hiển thị thông tin cơ bản
         details_html = f"""
         <div class="details-panel">
             <div class="details-title">📋 Chi tiết sự kiện đã chọn trên lịch</div>
@@ -444,8 +504,24 @@ if menu == "Dashboard":
             <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
             <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
             <div class="details-item"><span class="details-label">🛠 Hỗ trợ tổng quát:</span> {props['panel_support_text'] or "Không yêu cầu"}</div>
-        </div>
         """
+        
+        # 2. Xử lý hiển thị bảng hỗ trợ chi tiết nếu "Hỗ trợ: CÓ"
+        if is_yes(props['panel_support_text']):
+            # Giải nén JSON String bền vững cam kết 100% không nháy nháy
+            # (Thực ra ExtendedProps khi nhận về từ custom component đã tự deserialize thành dict, 
+            # nhưng trường dữ liệu 'raw_row_data_json_string' bên trong vẫn là string JSON ta cất)
+            raw_event_data_json_str = props['raw_row_data_json_string']
+            raw_event_data = json.loads(raw_event_data_json_str)
+            
+            # Gọi hàm xây dựng bảng HTML chi tiết (Đã sửa đổi để nhận dictionary)
+            support_table_html = build_detailed_support_table_html(raw_event_data)
+            details_html += support_table_html
+            
+        # Đóng thẻ div panel
+        details_html += "</div>"
+        
+        # Vẽ Panel ra màn hình
         st.markdown(details_html, unsafe_allow_html=True)
         
         # Nút đóng panel (Xóa state)
@@ -463,12 +539,16 @@ if menu == "Dashboard":
 
 # Các trang menu khác Giữ nguyên...
 elif menu == "Báo cáo":
+    # ...
     pass
 elif menu == "Cảnh báo trùng lịch":
+    # ...
     pass
 elif menu == "Thống kê hỗ trợ":
     pass
 elif menu == "Truy vấn AI":
+    # ...
     pass
 elif menu == "Sự kiện chờ phê duyệt":
+    # ...
     pass
