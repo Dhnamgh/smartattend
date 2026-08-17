@@ -13,11 +13,9 @@ from io import BytesIO
 st.set_page_config(layout="wide")
 
 # ==============================================================================
-# !!! KHỞI TẠO STATE (ĐẶT TRƯỚC CSS) !!!
+# !!! CHÚ Ý: CHÚNG TA KHÔNG CẦN KHỞI TẠO STATE THỦ CÔNG NỮA !!!
+# Streamlit sẽ tự quản lý State thông qua 'key' của component.
 # ==============================================================================
-# State để lưu trữ dữ liệu mở rộng (extendedProps) của sự kiện được chọn
-if "selected_event_props" not in st.session_state:
-    st.session_state.selected_event_props = None
 
 # ==============================================================================
 # 1. GIAO DIỆN & CSS (TỐI ƯU MOBILE & HIỂN THỊ CHI TIẾT)
@@ -317,6 +315,41 @@ def build_approval_summary_table(df_input):
         })
     return pd.DataFrame(rows, columns=columns)
 
+def build_support_table(df_input):
+    support_cols = {
+        "support_ban_don_tiep": "Bàn đón tiếp", "support_khan_ban": "Trải khăn bàn hội trường",
+        "support_le_tan": "Lễ tân", "support_bang_ten": "Bảng tên/bảng mica",
+        "support_bia_ky_ket": "Bìa ký kết", "support_nuoc_uong": "Nước uống",
+        "support_teabreak": "Teabreak", "support_hoa_ban": "Hoa để bàn",
+        "support_hoa_buc": "Hoa bục phát biểu", "support_hoa_tang": "Hoa bó tặng",
+        "support_qua_tang": "Quà tặng", "support_brochure": "Brochure",
+        "support_khay_bung": "Khay bưng", "support_bandroll_standee": "Bandroll/standee",
+        "support_backdrop": "Backdrop", "support_bang_dien_tu": "Bảng điện tử",
+        "support_thu_moi": "Gửi thư mời", "support_khac": "Yêu cầu khác"
+    }
+    rows = []
+    for _, r in df_input.iterrows():
+        has_support_flag, has_detail = is_yes(r.get("support", "")), False
+        for col, label in support_cols.items():
+            if col in df_input.columns:
+                qty = count_value(r.get(col, ""))
+                if qty > 0:
+                    has_detail = True
+                    rows.append({
+                        "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
+                        "Ngày giờ": r.get("full_start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("full_start")) else "",
+                        "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": label,
+                        "Số lượng": qty, "Ghi chú/Giá trị gốc": clean_text(r.get(col, ""))
+                    })
+        if has_support_flag and not has_detail:
+            rows.append({
+                "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
+                "Ngày giờ": r.get("full_start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("full_start")) else "",
+                "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": "Có yêu cầu hỗ trợ",
+                "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get("support", ""))
+            })
+    return pd.DataFrame(rows)
+
 # !!! HÀM SỬA ĐỔI: TRÍCH XUẤT HỖ TRỢ TỪ CHUỖI JSON !!!
 def build_detailed_support_table_html(raw_event_data_json_str):
     """
@@ -328,7 +361,6 @@ def build_detailed_support_table_html(raw_event_data_json_str):
 
     try:
         # Giải nén chuỗi JSON String thành Dictionary Python
-        # JSON String này đã được xử lý pandas Timestamp/NaT an toàn từ to_json()
         raw_data = json.loads(raw_event_data_json_str)
     except Exception as e:
         return f"<p class='details-item'>❌ Lỗi giải nén dữ liệu hỗ trợ: {e}</p>"
@@ -400,7 +432,7 @@ def build_detailed_support_table_html(raw_event_data_json_str):
     """
     return table_html
 
-# ================= =============================================================
+# ==============================================================================
 # 4. KHỞI TẠO STATE & KHAI BÁO MENU - GIỮ NGUYÊN
 # ==============================================================================
 df = load_data()
@@ -439,8 +471,7 @@ if menu == "Dashboard":
         event_dates_for_stats.append(s)
         
         # !!! SỬA LỖI TẠI ĐÂY: CHUYỂN pd.Series THÀNH CHUỖI JSON STRING !!!
-        # logic cũ `event_raw_data = r.to_dict()` gây lỗi marshalling
-        # logic mới dùng r.to_json() để biến object phức tạp (Timestamp, NaT) thành CHUỖI STRING an toàn 100% cho JSON.
+        # Dùng r.to_json() để biến object phức tạp (Timestamp, NaT) thành CHUỖI STRING an toàn 100% cho JSON Custom Component.
         event_raw_data_json_string = r.to_json() 
         
         events.append({
@@ -460,26 +491,29 @@ if menu == "Dashboard":
             }
         })
 
-    # Cấu hình lịch
+    # !!! PHẦN SỬA ĐỔI QUAN TRỌNG NHẤT: DÙNG KEY CỐ ĐỊNH CHO LỊCH !!!
+    # Cấu hình lịch với KEY CỐ ĐỊNH để Streamlit quản lý State bền vững.
     calendar_output = calendar(
         events=events,
         options={"initialView": "dayGridMonth", "locale": "vi", "firstDay": 1, "height": "auto", "eventDisplay": "block"},
-        key="ump_calendar"
+        key="ump_event_calendar" # KEY CỐ ĐỊNH LÀ BẮT BUỘC
     )
 
-    # Xử lý click sự kiện: Lấy dữ liệu từ output của calendar component
-    if calendar_output and "callback" in calendar_output and calendar_output["callback"] == "eventClick":
-        # Lưu dữ liệu mở rộng vào Session State ngay lập tức
-        st.session_state.selected_event_props = calendar_output["eventClick"]["event"]["extendedProps"]
-        # Tải lại trang để vẽ Panel
-        st.rerun()
-
-    # !!! HIỂN THỊ CHI TIẾT SỰ KIỆN (CÓ BẢNG HỖ TRỢ CHI TIẾT) !!!
-    if st.session_state.selected_event_props:
-        data = st.session_state.selected_event_props
-        e = data["display_data"]
-        # Lấy chuỗi JSON String ra
-        raw_data_json_str = data["raw_row_data_json_string"]
+    # !!! SỬA LỖI LOGIC: KHÔNG DÙNG callback, TRUY CẬP THẲNG VÀO STATE CỦA KEY !!!
+    # Thay vì kiểm tra 'if calendar_output and callback...', chúng ta kiểm tra thẳng Session State
+    # mà Streamlit tự động tạo ra cho key "ump_event_calendar".
+    
+    calendar_state = st.session_state.get("ump_event_calendar", {})
+    
+    # Kiểm tra xem State của lịch có chứa sự kiện click không (Dữ liệu này bền vững, không nháy nháy)
+    if calendar_state and "eventClick" in calendar_state:
+        # Lấy dữ liệu mở rộng ra
+        event_props = calendar_state["eventClick"]["event"]["extendedProps"]
+        
+        # Giải nén dữ liệu hiển thị cơ bản
+        e = event_props["display_data"]
+        # Lấy chuỗi JSON String dữ liệu thô
+        raw_data_json_str = event_props["raw_row_data_json_string"]
         
         # 1. Hiển thị thông tin cơ bản
         details_html = f"""
@@ -494,7 +528,7 @@ if menu == "Dashboard":
         
         # 2. Xử lý hiển thị bảng hỗ trợ chi tiết nếu "Hỗ trợ: CÓ"
         if is_yes(e.get("support", "")):
-            # Gọi hàm trích xuất chi tiết
+            # Gọi hàm trích xuất chi tiết (Hàm này đã được sửa để GIẢI NÉN JSON STRING)
             support_table_html = build_detailed_support_table_html(raw_data_json_str)
             details_html += support_table_html
             
@@ -506,8 +540,13 @@ if menu == "Dashboard":
         
         # Nút đóng
         if st.button("✖️ Đóng xem chi tiết"):
-            st.session_state.selected_event_props = None
+            # Để đóng, chúng ta cần xóa State eventClick trong component
+            # Cách đơn giản nhất là xóa state của key lịch và rerun.
+            del st.session_state["ump_event_calendar"]
             st.rerun()
+    
+    elif df_f.empty or len(event_dates_for_stats) == 0:
+        st.info("Không có sự kiện đã thống nhất nào được lên lịch trong tháng.")
 
     st.subheader("📈 Tổng quan tháng này")
     week_start = (today - timedelta(days=today.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -517,19 +556,14 @@ if menu == "Dashboard":
     c2.metric("Tháng này", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm nay", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# Các trang menu khác (Báo cáo, Cảnh báo...) giữ nguyên
+# Các trang menu khác Giữ nguyên...
 elif menu == "Báo cáo":
-    # ...
     pass
 elif menu == "Cảnh báo trùng lịch":
-    # ...
     pass
 elif menu == "Thống kê hỗ trợ":
-    # ...
     pass
 elif menu == "Truy vấn AI":
-    # ...
     pass
 elif menu == "Sự kiện chờ phê duyệt":
-    # ...
     pass
