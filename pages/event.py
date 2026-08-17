@@ -13,10 +13,20 @@ from io import BytesIO
 st.set_page_config(layout="wide")
 
 # ==============================================================================
-# !!! KHỞI TẠO STATE !!!
+# !!! KHỞI TẠO STATE & BẢO MẬT !!!
 # ==============================================================================
 if "selected_event_details" not in st.session_state:
     st.session_state.selected_event_details = None
+
+if "auth_dang_ky" not in st.session_state:
+    st.session_state.auth_dang_ky = False
+
+if "auth_phe_duyet" not in st.session_state:
+    st.session_state.auth_phe_duyet = False
+
+# Cấu hình mật khẩu (Có thể lấy từ st.secrets hoặc dùng mặc định)
+PASSWORD_DANG_KY = st.secrets.get("passwords", {}).get("dang_ky", "ump2026")
+PASSWORD_PHE_DUYET = st.secrets.get("passwords", {}).get("phe_duyet", "admin2026")
 
 # ==============================================================================
 # 1. GIAO DIỆN & CSS
@@ -555,140 +565,172 @@ if menu == "Dashboard":
     c2.metric("Tháng này", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm nay", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- 2. ĐĂNG KÝ SỰ KIỆN ---
+# --- 2. ĐĂNG KÝ SỰ KIỆN (BẢO MẬT MẬT KHẨU) ---
 elif menu == "Đăng ký sự kiện":
     st.markdown('<div class="table-title">📝 Đăng ký Sự kiện Mới</div>', unsafe_allow_html=True)
-    with st.form("form_dang_ky_su_kien"):
-        c1, c2 = st.columns(2)
-        ten_sk = c1.text_input("Tên sự kiện (*)", placeholder="Nhập tên sự kiện")
-        don_vi = c2.text_input("Đơn vị phụ trách/tổ chức (*)", placeholder="Ví dụ: Phòng HCTH, Khoa Dược...")
-        
-        c3, c4 = st.columns(2)
-        ngay_bd = c3.date_input("Ngày tổ chức (*)", value=datetime.today())
-        ngay_kt = c4.date_input("Ngày kết thúc", value=datetime.today())
-        
-        c5, c6 = st.columns(2)
-        gio_bd = c5.text_input("Giờ bắt đầu", placeholder="Ví dụ: 08:00 hoặc 8h")
-        gio_kt = c6.text_input("Giờ kết thúc", placeholder="Ví dụ: 11:30 hoặc 11h30")
-        
-        dia_diem = st.text_input("Địa điểm tổ chức", placeholder="Ví dụ: Hội trường A, Phòng họp 1...")
-        
-        st.markdown("---")
-        st.markdown("**Đề xuất hỗ trợ từ phòng Hành chính Tổng hợp:**")
-        co_ho_tro = st.checkbox("Có yêu cầu hỗ trợ", value=False)
-        
-        col_s1, col_s2, col_s3 = st.columns(3)
-        ban_don_tiep = col_s1.text_input("Số lượng bàn đón tiếp")
-        khan_ban = col_s2.selectbox("Cần trải khăn bàn hội trường", ["Không", "Có"])
-        le_tan = col_s3.text_input("Số lượng lễ tân")
-        
-        bang_ten = col_s1.text_input("Số lượng bảng tên mica")
-        bia_ky_ket = col_s2.text_input("Số lượng bìa ký kết")
-        nuoc_uong = col_s3.text_input("Số lượng nước uống")
-        
-        teabreak = col_s1.text_input("Số phần Teabreak")
-        hoa_ban = col_s2.text_input("Số lượng hoa để bàn")
-        hoa_buc = col_s3.text_input("Số lượng hoa bục phát biểu")
-        
-        hoa_tang = col_s1.text_input("Số lượng hoa bó tặng")
-        qua_tang = col_s2.text_input("Số lượng quà tặng")
-        brochure = col_s3.text_input("Số lượng Brochure")
-        
-        khay_bung = col_s1.text_input("Số lượng khay bưng")
-        bandroll = col_s2.text_input("Bandroll/Standee cần in & thi công")
-        backdrop = col_s3.text_input("Backdrop cần in & thi công")
-        
-        bang_dien_tu = col_s1.selectbox("Cần chạy bảng điện tử", ["Không", "Có"])
-        noi_dung_bdt = col_s2.text_area("Nội dung chạy bảng điện tử (nếu có)")
-        thu_moi = col_s3.selectbox("Cần gửi thư mời", ["Không", "Có"])
-        
-        yeu_cau_khac = st.text_area("Các yêu cầu khác (nếu có)")
-        
-        submitted = st.form_submit_button("🚀 Gửi đăng ký sự kiện")
-        if submitted:
-            if not ten_sk.strip() or not don_vi.strip():
-                st.error("❌ Vui lòng điền đầy đủ Tên sự kiện và Đơn vị tổ chức!")
+    
+    if not st.session_state.auth_dang_ky:
+        pwd_dk = st.text_input("🔒 Nhập mật khẩu để mở form đăng ký:", type="password", key="pwd_dk_input")
+        if st.button("Xác nhận mở khóa", key="btn_auth_dk"):
+            if pwd_dk == PASSWORD_DANG_KY:
+                st.session_state.auth_dang_ky = True
+                st.rerun()
             else:
-                new_row = {
-                    "Tên sự kiện": ten_sk.strip(),
-                    "Đơn vị phụ trách/ tổ chức": don_vi.strip(),
-                    "Ngày tổ chức": ngay_bd.strftime("%Y-%m-%d"),
-                    "Ngày kết thúc": ngay_kt.strftime("%Y-%m-%d"),
-                    "Giờ bắt đầu": gio_bd.strip(),
-                    "Giờ kết thúc": gio_kt.strip(),
-                    "Địa điểm tổ chức": dia_diem.strip(),
-                    "Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp": "CÓ" if co_ho_tro else "KHÔNG",
-                    "Số lượng bàn đón tiếp": ban_don_tiep.strip(),
-                    "Cần trải khăn bàn hội trường": khan_ban,
-                    "Số lượng lễ tân": le_tan.strip(),
-                    "Số lượng bảng tên (bảng mica)": bang_ten.strip(),
-                    "Số lượng bìa ký kết": bia_ky_ket.strip(),
-                    "Số lượng nước uống": nuoc_uong.strip(),
-                    "Số phần Teabreak": teabreak.strip(),
-                    "Số lượng hoa để bàn": hoa_ban.strip(),
-                    "Số lượng hoa để bục phát biểu": hoa_buc.strip(),
-                    "Số lượng hoa bó để tặng": hoa_tang.strip(),
-                    "Số lượng quà tặng": qua_tang.strip(),
-                    "Số lượng Brochure": brochure.strip(),
-                    "Số lượng khay bưng": khay_bung.strip(),
-                    "Số lượng bandroll, standee cần in và thi công": bandroll.strip(),
-                    "Số lượng Backdrop cần in và thi công": backdrop.strip(),
-                    "Cần chạy bảng điện tử": bang_dien_tu,
-                    "Nội dung chạy bảng điện tử (nếu có)": noi_dung_bdt.strip(),
-                    "Cần gửi thư mời": thu_moi,
-                    "Các yêu cầu khác (nếu có)": yeu_cau_khac.strip(),
-                    "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)": ""
-                }
-                df_to_save = df.copy() if not df.empty else pd.DataFrame()
-                df_to_save = pd.concat([df_to_save, pd.DataFrame([new_row])], ignore_index=True)
-                if save_onedrive_excel(df_to_save):
-                    st.success("🎉 Đăng ký sự kiện thành công và đã lưu vào hệ thống!")
-                    st.cache_data.clear()
-                    st.rerun()
+                st.error("❌ Mật khẩu không chính xác. Vui lòng thử lại!")
+    else:
+        col_auth1, col_auth2 = st.columns([6, 1])
+        with col_auth2:
+            if st.button("🔒 Khóa lại", key="btn_lock_dk"):
+                st.session_state.auth_dang_ky = False
+                st.rerun()
+                
+        with st.form("form_dang_ky_su_kien"):
+            c1, c2 = st.columns(2)
+            ten_sk = c1.text_input("Tên sự kiện (*)", placeholder="Nhập tên sự kiện")
+            don_vi = c2.text_input("Đơn vị phụ trách/tổ chức (*)", placeholder="Ví dụ: Phòng HCTH, Khoa Dược...")
+            
+            c3, c4 = st.columns(2)
+            ngay_bd = c3.date_input("Ngày tổ chức (*)", value=datetime.today())
+            ngay_kt = c4.date_input("Ngày kết thúc", value=datetime.today())
+            
+            c5, c6 = st.columns(2)
+            gio_bd = c5.text_input("Giờ bắt đầu", placeholder="Ví dụ: 08:00 hoặc 8h")
+            gio_kt = c6.text_input("Giờ kết thúc", placeholder="Ví dụ: 11:30 hoặc 11h30")
+            
+            dia_diem = st.text_input("Địa điểm tổ chức", placeholder="Ví dụ: Hội trường A, Phòng họp 1...")
+            
+            st.markdown("---")
+            st.markdown("**Đề xuất hỗ trợ từ phòng Hành chính Tổng hợp:**")
+            co_ho_tro = st.checkbox("Có yêu cầu hỗ trợ", value=False)
+            
+            col_s1, col_s2, col_s3 = st.columns(3)
+            ban_don_tiep = col_s1.text_input("Số lượng bàn đón tiếp")
+            khan_ban = col_s2.selectbox("Cần trải khăn bàn hội trường", ["Không", "Có"])
+            le_tan = col_s3.text_input("Số lượng lễ tân")
+            
+            bang_ten = col_s1.text_input("Số lượng bảng tên mica")
+            bia_ky_ket = col_s2.text_input("Số lượng bìa ký kết")
+            nuoc_uong = col_s3.text_input("Số lượng nước uống")
+            
+            teabreak = col_s1.text_input("Số phần Teabreak")
+            hoa_ban = col_s2.text_input("Số lượng hoa để bàn")
+            hoa_buc = col_s3.text_input("Số lượng hoa bục phát biểu")
+            
+            hoa_tang = col_s1.text_input("Số lượng hoa bó tặng")
+            qua_tang = col_s2.text_input("Số lượng quà tặng")
+            brochure = col_s3.text_input("Số lượng Brochure")
+            
+            khay_bung = col_s1.text_input("Số lượng khay bưng")
+            bandroll = col_s2.text_input("Bandroll/Standee cần in & thi công")
+            backdrop = col_s3.text_input("Backdrop cần in & thi công")
+            
+            bang_dien_tu = col_s1.selectbox("Cần chạy bảng điện tử", ["Không", "Có"])
+            noi_dung_bdt = col_s2.text_area("Nội dung chạy bảng điện tử (nếu có)")
+            thu_moi = col_s3.selectbox("Cần gửi thư mời", ["Không", "Có"])
+            
+            yeu_cau_khac = st.text_area("Các yêu cầu khác (nếu có)")
+            
+            submitted = st.form_submit_button("🚀 Gửi đăng ký sự kiện")
+            if submitted:
+                if not ten_sk.strip() or not don_vi.strip():
+                    st.error("❌ Vui lòng điền đầy đủ Tên sự kiện và Đơn vị tổ chức!")
+                else:
+                    new_row = {
+                        "Tên sự kiện": ten_sk.strip(),
+                        "Đơn vị phụ trách/ tổ chức": don_vi.strip(),
+                        "Ngày tổ chức": ngay_bd.strftime("%Y-%m-%d"),
+                        "Ngày kết thúc": ngay_kt.strftime("%Y-%m-%d"),
+                        "Giờ bắt đầu": gio_bd.strip(),
+                        "Giờ kết thúc": gio_kt.strip(),
+                        "Địa điểm tổ chức": dia_diem.strip(),
+                        "Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp": "CÓ" if co_ho_tro else "KHÔNG",
+                        "Số lượng bàn đón tiếp": ban_don_tiep.strip(),
+                        "Cần trải khăn bàn hội trường": khan_ban,
+                        "Số lượng lễ tân": le_tan.strip(),
+                        "Số lượng bảng tên (bảng mica)": bang_ten.strip(),
+                        "Số lượng bìa ký kết": bia_ky_ket.strip(),
+                        "Số lượng nước uống": nuoc_uong.strip(),
+                        "Số phần Teabreak": teabreak.strip(),
+                        "Số lượng hoa để bàn": hoa_ban.strip(),
+                        "Số lượng hoa để bục phát biểu": hoa_buc.strip(),
+                        "Số lượng hoa bó để tặng": hoa_tang.strip(),
+                        "Số lượng quà tặng": qua_tang.strip(),
+                        "Số lượng Brochure": brochure.strip(),
+                        "Số lượng khay bưng": khay_bung.strip(),
+                        "Số lượng bandroll, standee cần in và thi công": bandroll.strip(),
+                        "Số lượng Backdrop cần in và thi công": backdrop.strip(),
+                        "Cần chạy bảng điện tử": bang_dien_tu,
+                        "Nội dung chạy bảng điện tử (nếu có)": noi_dung_bdt.strip(),
+                        "Cần gửi thư mời": thu_moi,
+                        "Các yêu cầu khác (nếu có)": yeu_cau_khac.strip(),
+                        "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)": ""
+                    }
+                    df_to_save = df.copy() if not df.empty else pd.DataFrame()
+                    df_to_save = pd.concat([df_to_save, pd.DataFrame([new_row])], ignore_index=True)
+                    if save_onedrive_excel(df_to_save):
+                        st.success("🎉 Đăng ký sự kiện thành công và đã lưu vào hệ thống!")
+                        st.cache_data.clear()
+                        st.rerun()
 
-# --- 3. PHÊ DUYỆT SỰ KIỆN ---
+# --- 3. PHÊ DUYỆT SỰ KIỆN (BẢO MẬT MẬT KHẨU) ---
 elif menu == "Phê duyệt sự kiện":
     st.markdown('<div class="table-title">⚖️ Phê duyệt Sự kiện (Dành cho Quản trị viên)</div>', unsafe_allow_html=True)
-    if st.button("🔄 Tải lại danh sách"):
-        st.cache_data.clear()
-        st.rerun()
-        
-    if df.empty:
-        st.info("Chưa có dữ liệu sự kiện.")
+    
+    if not st.session_state.auth_phe_duyet:
+        pwd_pd = st.text_input("🔒 Nhập mật khẩu quản trị viên để vào trang phê duyệt:", type="password", key="pwd_pd_input")
+        if st.button("Xác nhận mở khóa", key="btn_auth_pd"):
+            if pwd_pd == PASSWORD_PHE_DUYET:
+                st.session_state.auth_phe_duyet = True
+                st.rerun()
+            else:
+                st.error("❌ Mật khẩu không chính xác. Quyền truy cập bị từ chối!")
     else:
-        approvals = df.apply(approval_text_from_row, axis=1)
-        df_pending = df[~approvals.eq("Thống nhất") & ~approvals.str.startswith("Thống nhất:")].copy()
-        
-        if df_pending.empty:
-            st.success("✅ Hiện không có sự kiện nào đang chờ phê duyệt.")
+        col_auth1, col_auth2 = st.columns([6, 1])
+        with col_auth2:
+            if st.button("🔒 Đăng xuất", key="btn_lock_pd"):
+                st.session_state.auth_phe_duyet = False
+                st.rerun()
+                
+        if st.button("🔄 Tải lại danh sách"):
+            st.cache_data.clear()
+            st.rerun()
+            
+        if df.empty:
+            st.info("Chưa có dữ liệu sự kiện.")
         else:
-            st.write(f"Đang có **{len(df_pending)}** sự kiện chờ xử lý:")
-            for idx, r in df_pending.iterrows():
-                with st.expander(f"📌 {r['event']} - {r['donvi']} ({r['start'].strftime('%d/%m/%Y') if pd.notna(r['start']) else ''})"):
-                    st.write(f"**Thời gian:** {r.get('start_time', '')} - {r.get('end_time', '')}")
-                    st.write(f"**Địa điểm:** {r.get('location', 'Chưa rõ')}")
-                    st.write(f"**Yêu cầu hỗ trợ:** {r.get('support', 'Không')}")
-                    
-                    y_kien = st.text_input("Ý kiến phê duyệt:", value=r.get("approval_opinion", ""), key=f"yk_{idx}")
-                    col_b1, col_b2 = st.columns(2)
-                    
-                    if col_b1.button("✅ Thống nhất (Duyệt)", key=f"btn_ok_{idx}"):
-                        opinion_str = f"Thống nhất: {y_kien.strip()}" if y_kien.strip() else "Thống nhất"
-                        df_to_save = df.copy()
-                        df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
-                        if save_onedrive_excel(df_to_save):
-                            st.success(f"Đã duyệt sự kiện: {r['event']}")
-                            st.cache_data.clear()
-                            st.rerun()
-                            
-                    if col_b2.button("❌ Không thống nhất", key=f"btn_no_{idx}"):
-                        opinion_str = f"Không thống nhất: {y_kien.strip()}" if y_kien.strip() else "Không thống nhất"
-                        df_to_save = df.copy()
-                        df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
-                        if save_onedrive_excel(df_to_save):
-                            st.warning(f"Đã từ chối sự kiện: {r['event']}")
-                            st.cache_data.clear()
-                            st.rerun()
+            approvals = df.apply(approval_text_from_row, axis=1)
+            df_pending = df[~approvals.eq("Thống nhất") & ~approvals.str.startswith("Thống nhất:")].copy()
+            
+            if df_pending.empty:
+                st.success("✅ Hiện không có sự kiện nào đang chờ phê duyệt.")
+            else:
+                st.write(f"Đang có **{len(df_pending)}** sự kiện chờ xử lý:")
+                for idx, r in df_pending.iterrows():
+                    with st.expander(f"📌 {r['event']} - {r['donvi']} ({r['start'].strftime('%d/%m/%Y') if pd.notna(r['start']) else ''})"):
+                        st.write(f"**Thời gian:** {r.get('start_time', '')} - {r.get('end_time', '')}")
+                        st.write(f"**Địa điểm:** {r.get('location', 'Chưa rõ')}")
+                        st.write(f"**Yêu cầu hỗ trợ:** {r.get('support', 'Không')}")
+                        
+                        y_kien = st.text_input("Ý kiến phê duyệt:", value=r.get("approval_opinion", ""), key=f"yk_{idx}")
+                        col_b1, col_b2 = st.columns(2)
+                        
+                        if col_b1.button("✅ Thống nhất (Duyệt)", key=f"btn_ok_{idx}"):
+                            opinion_str = f"Thống nhất: {y_kien.strip()}" if y_kien.strip() else "Thống nhất"
+                            df_to_save = df.copy()
+                            df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
+                            if save_onedrive_excel(df_to_save):
+                                st.success(f"Đã duyệt sự kiện: {r['event']}")
+                                st.cache_data.clear()
+                                st.rerun()
+                                
+                        if col_b2.button("❌ Không thống nhất", key=f"btn_no_{idx}"):
+                            opinion_str = f"Không thống nhất: {y_kien.strip()}" if y_kien.strip() else "Không thống nhất"
+                            df_to_save = df.copy()
+                            df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
+                            if save_onedrive_excel(df_to_save):
+                                st.warning(f"Đã từ chối sự kiện: {r['event']}")
+                                st.cache_data.clear()
+                                st.rerun()
 
 # --- 4. BÁO CÁO ---
 elif menu == "Báo cáo":
