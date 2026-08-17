@@ -13,7 +13,7 @@ from io import BytesIO
 st.set_page_config(layout="wide")
 
 # ==============================================================================
-# !!! KHỞI TẠO STATE & BẢO MẬT !!!
+# !!! KHỞI TẠO STATE & ĐỌC MẬT KHẨU TỪ SECRETS !!!
 # ==============================================================================
 if "selected_event_details" not in st.session_state:
     st.session_state.selected_event_details = None
@@ -24,9 +24,9 @@ if "auth_dang_ky" not in st.session_state:
 if "auth_phe_duyet" not in st.session_state:
     st.session_state.auth_phe_duyet = False
 
-# Cấu hình mật khẩu (Có thể lấy từ st.secrets hoặc dùng mặc định)
-PASSWORD_DANG_KY = st.secrets.get("passwords", {}).get("dang_ky", "ump2026")
-PASSWORD_PHE_DUYET = st.secrets.get("passwords", {}).get("phe_duyet", "admin2026")
+# Đọc chính xác cấu trúc secrets [user] và [admin]
+PASSWORD_DANG_KY = st.secrets["user"]["password"]
+PASSWORD_PHE_DUYET = st.secrets["admin"]["password"]
 
 # ==============================================================================
 # 1. GIAO DIỆN & CSS
@@ -565,7 +565,7 @@ if menu == "Dashboard":
     c2.metric("Tháng này", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm nay", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- 2. ĐĂNG KÝ SỰ KIỆN (BẢO MẬT MẬT KHẨU) ---
+# --- 2. ĐĂNG KÝ SỰ KIỆN ---
 elif menu == "Đăng ký sự kiện":
     st.markdown('<div class="table-title">📝 Đăng ký Sự kiện Mới</div>', unsafe_allow_html=True)
     
@@ -672,7 +672,7 @@ elif menu == "Đăng ký sự kiện":
                         st.cache_data.clear()
                         st.rerun()
 
-# --- 3. PHÊ DUYỆT SỰ KIỆN (BẢO MẬT MẬT KHẨU) ---
+# --- 3. PHÊ DUYỆT SỰ KIỆN ---
 elif menu == "Phê duyệt sự kiện":
     st.markdown('<div class="table-title">⚖️ Phê duyệt Sự kiện (Dành cho Quản trị viên)</div>', unsafe_allow_html=True)
     
@@ -722,15 +722,15 @@ elif menu == "Phê duyệt sự kiện":
                                 st.success(f"Đã duyệt sự kiện: {r['event']}")
                                 st.cache_data.clear()
                                 st.rerun()
-                                
-                        if col_b2.button("❌ Không thống nhất", key=f"btn_no_{idx}"):
-                            opinion_str = f"Không thống nhất: {y_kien.strip()}" if y_kien.strip() else "Không thống nhất"
-                            df_to_save = df.copy()
-                            df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
-                            if save_onedrive_excel(df_to_save):
-                                st.warning(f"Đã từ chối sự kiện: {r['event']}")
-                                st.cache_data.clear()
-                                st.rerun()
+                            
+                    if col_b2.button("❌ Không thống nhất", key=f"btn_no_{idx}"):
+                        opinion_str = f"Không thống nhất: {y_kien.strip()}" if y_kien.strip() else "Không thống nhất"
+                        df_to_save = df.copy()
+                        df_to_save.at[idx, "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)"] = opinion_str
+                        if save_onedrive_excel(df_to_save):
+                            st.warning(f"Đã từ chối sự kiện: {r['event']}")
+                            st.cache_data.clear()
+                            st.rerun()
 
 # --- 4. BÁO CÁO ---
 elif menu == "Báo cáo":
