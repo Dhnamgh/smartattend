@@ -12,12 +12,12 @@ from io import BytesIO
 
 st.set_page_config(layout="wide")
 
-# !!! KHỞI TẠO STATE CỐ ĐỊNH Cam kết 100% không mất panel !!!
+# !!! KHỞI TẠO STATE CỐ ĐỊNH !!!
 if "selected_event_details" not in st.session_state:
     st.session_state.selected_event_details = None
 
 # ==============================================================================
-# 1. GIAO DIỆN & CSS (TỐI ƯU MOBILE & HIỂN THỊ CHI TIẾT) - GIỮ NGUYÊN
+# 1. GIAO DIỆN & CSS (TỐI ƯU MOBILE & HIỂN THỊ CHI TIẾT)
 # ==============================================================================
 st.markdown("""
 <style>
@@ -39,8 +39,8 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label p {
 }
 
 /* CSS cơ bản */
-html, body { font-family: Arial, sans-serif; font-size:20px; color:#111827; }
-section[data-testid="stSidebar"] { width:255px !important; min-width:255px !important; max-width:255px !important; }
+html, body { font-family: Arial, sans-serif; font-size: 20px; color: #111827; }
+section[data-testid="stSidebar"] { width: 255px !important; min-width: 255px !important; max-width: 255px !important; }
 section[data-testid="stSidebar"] * { font-size: 13px !important; }
 .block-container { padding-top: 1rem; }
 
@@ -76,23 +76,28 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .details-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
-.details-item { font-size: 15px; color: #1e293b; margin-bottom: 6px; line-height: 1.4; }
-.details-label { font-weight: 600; color: #020617; }
+.details-item { font-size: 15px; color: #1e293b; margin-bottom: 6px; line-height: 1.4; word-break: break-word; }
+.details-label { font-weight: 700; color: #020617; }
+.details-support-title { font-size: 16px; font-weight: 700; color: #020617; margin-top: 14px; margin-bottom: 8px; }
+.details-support-table-wrap { width: 100%; overflow-x: auto; margin-bottom: 8px; }
+.bdt-row { margin-top: 10px; font-size: 15px; color: #1e293b; line-height: 1.4; word-break: break-word; }
 
-/* CSS HỖ TRỢ MOBILE RESPONSIVE */
+/* CSS TỰ ĐỘNG RESPONSIVE CHUẨN ĐIỆN THOẠI */
 @media screen and (max-width: 768px) {
-    .ump-fixed-header { padding: 12px 16px; margin-bottom: 15px; }
+    .ump-fixed-header { padding: 12px 14px; margin-bottom: 12px; }
     .ump-fixed-header .ump-vn { font-size: 14px; }
-    .ump-fixed-header .ump-en { font-size: 10px; margin-top: 2px; }
-    .ump-fixed-header .ump-app { font-size: 17px; margin-top: 8px; }
-    .block-container { padding: 0.5rem; }
-    .table-title { font-size: 17px; margin-top: 10px; }
-    .fc .fc-toolbar-title { font-size: 15px !important; }
-    .event-details-panel { padding: 12px; margin-top: 10px; }
-    .details-title { font-size: 16px; }
-    .details-item { font-size: 14px; }
-    .ump-table { font-size: 13px; }
-    .ump-table th, .ump-table td { padding: 6px 8px; }
+    .ump-fixed-header .ump-en { font-size: 9px; margin-top: 2px; }
+    .ump-fixed-header .ump-app { font-size: 16px; margin-top: 6px; }
+    .block-container { padding: 0.4rem !important; }
+    .table-title { font-size: 16px; margin-top: 8px; }
+    .fc .fc-toolbar { flex-direction: column; gap: 6px; }
+    .fc .fc-toolbar-title { font-size: 14px !important; }
+    .event-details-panel { padding: 10px; margin-top: 10px; }
+    .details-title { font-size: 15px; margin-bottom: 8px; }
+    .details-item, .bdt-row { font-size: 13.5px; }
+    .details-support-title { font-size: 14px; margin-top: 10px; margin-bottom: 6px; }
+    .ump-table { font-size: 12.5px; }
+    .ump-table th, .ump-table td { padding: 5px 6px; }
 }
 </style>
 
@@ -408,10 +413,12 @@ def build_support_table(df_input):
 
 def build_detailed_support_table_html(raw_event_data_dictionary):
     """
-    Nhận dữ liệu thô (raw_data) từ extendedProps, trích xuất và xây dựng bảng HTML hỗ trợ.
+    Nhận dữ liệu thô từ extendedProps, xây dựng bảng HTML 2 cột (bỏ cột Chi tiết),
+    riêng Bảng điện tử hiển thị thành 1 dòng riêng bên dưới bảng.
     """
     raw_data = raw_event_data_dictionary
 
+    # Danh sách các trường đưa vào bảng (không đưa support_bang_dien_tu vào bảng)
     support_fields = {
         "support_ban_don_tiep": "Số lượng bàn đón tiếp",
         "support_khan_ban": "Cần trải khăn bàn hội trường",
@@ -428,7 +435,6 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
         "support_khay_bung": "Số lượng khay bưng",
         "support_bandroll_standee": "Bandroll/standee in & thi công",
         "support_backdrop": "Backdrop in & thi công",
-        "support_bang_dien_tu": "Bảng điện tử",
         "support_thu_moi": "Cần gửi thư mời",
         "support_khac": "Các yêu cầu khác"
     }
@@ -438,52 +444,50 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
     for field_key, display_name in support_fields.items():
         if field_key in raw_data:
             val = raw_data[field_key]
-            
-            if field_key == "support_bang_dien_tu":
-                val_bdt = clean_text(val)
-                if not val_bdt or val_bdt.upper() in ["KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]:
-                    qty = 0
-                else:
-                    qty = 1
-            else:
-                qty = count_value(val)
-                
+            qty = count_value(val)
             if qty > 0:
-                orig_val = clean_text(val)
-                display_note = orig_val if orig_val != str(qty) else ""
-                
-                if field_key == "support_bang_dien_tu" and "Nội dung chạy bảng điện tử (nếu có)" in raw_data:
-                    content = clean_text(raw_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
-                    display_note = f"(Nội dung: {content})" if content else ""
-                    
-                detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td><td>{display_note}</td></tr>")
-                
+                detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td></tr>")
             elif field_key in ["support_bandroll_standee", "support_backdrop", "support_khac"]:
                 txt = clean_text(val)
                 if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
-                     detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td><td>{txt}</td></tr>")
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{txt}</td></tr>")
 
-    if not detailed_rows:
+    # Xử lý riêng trường Bảng điện tử ra 1 hàng riêng dưới bảng
+    bang_dien_tu_html = ""
+    val_bdt = clean_text(raw_data.get("support_bang_dien_tu", ""))
+    noi_dung_bdt = clean_text(raw_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
+    
+    if (val_bdt and val_bdt.upper() not in ["KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]) or noi_dung_bdt:
+        bdt_content_display = noi_dung_bdt if noi_dung_bdt else (val_bdt if val_bdt.upper() not in ["CÓ", "CO", "YES", "TRUE", "1"] else "Có yêu cầu chạy")
+        bang_dien_tu_html = f'<div class="bdt-row"><b>Bảng điện tử:</b> {bdt_content_display}</div>'
+
+    if not detailed_rows and not bang_dien_tu_html:
         return "<p class='details-item' style='font-style: italic;'>Không tìm thấy nội dung hỗ trợ cụ thể.</p>"
 
-    table_html = f"""
-    <div class="details-support-table-wrap">
-        <div class="details-support-title">🛠️ Nội dung hỗ trợ chi tiết</div>
+    table_part = ""
+    if detailed_rows:
+        table_part = f"""
         <table class="ump-table compact">
             <thead>
                 <tr>
                     <th>Nội dung hỗ trợ</th>
                     <th>Số lượng/Yêu cầu</th>
-                    <th>Chi tiết/Nội dung chạy</th>
                 </tr>
             </thead>
             <tbody>
                 {''.join(detailed_rows)}
             </tbody>
         </table>
+        """
+
+    result_html = f"""
+    <div class="details-support-table-wrap">
+        <div class="details-support-title">Nội dung hỗ trợ chi tiết</div>
+        {table_part}
+        {bang_dien_tu_html}
     </div>
     """
-    return table_html
+    return result_html
 
 # ==============================================================================
 # 4. KHỞI TẠO STATE & KHAI BÁO MENU
@@ -566,7 +570,7 @@ if menu == "Dashboard":
             <div class="details-item"><span class="details-label">🏢 Đơn vị:</span> {props['panel_donvi']}</div>
             <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
             <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
-            <div class="details-item"><span class="details-label">🛠 Hỗ trợ:</span> {props['panel_support_text'] or "Không yêu cầu"}</div>
+            <div class="details-item"><span class="details-label">Hỗ trợ:</span> {props['panel_support_text'] or "Không yêu cầu"}</div>
         """
         
         if is_yes(props['panel_support_text']):
@@ -576,7 +580,7 @@ if menu == "Dashboard":
                 support_table_html = build_detailed_support_table_html(raw_row_data)
                 details_html += support_table_html
             except Exception as ex:
-                 details_html += f"<p class='details-item'>❌ Lỗi giải nén dữ liệu hỗ trợ: {ex}</p>"
+                details_html += f"<p class='details-item'>❌ Lỗi giải nén dữ liệu hỗ trợ: {ex}</p>"
             
         details_html += "</div>"
         st.markdown(details_html, unsafe_allow_html=True)
