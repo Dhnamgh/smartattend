@@ -499,7 +499,7 @@ def build_detailed_support_table_html(raw_data):
     """
 
 # ==============================================================================
-# 4. KHỞI TẠO STATE & KHAI BÁO MENU
+# 4. KHỞI TẠO STATE & KHAI BÁO MENU (TỰ ĐỘNG GẮN BADGE SỐ ĐỎ VÀO NÚT PHÊ DUYỆT)
 # ==============================================================================
 df = load_data()
 today = datetime.today()
@@ -511,7 +511,18 @@ if "reg_start_date" not in st.session_state: st.session_state.reg_start_date = t
 if "reg_end_date" not in st.session_state: st.session_state.reg_end_date = today.date()
 if "reg_prev_start_date" not in st.session_state: st.session_state.reg_prev_start_date = st.session_state.reg_start_date
 
-menu = st.sidebar.radio("MENU", ["Dashboard", "Đăng ký", "Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI", "Phê duyệt", "Liên hệ"])
+# Tính toán số lượng sự kiện chờ phê duyệt để gắn nhãn vào Menu
+num_pending = 0
+if not df.empty:
+    num_pending = len(df[df.apply(approval_text_from_row, axis=1) == ""])
+
+phe_duyet_label = f"Phê duyệt 🔴 {num_pending}" if num_pending > 0 else "Phê duyệt"
+
+menu_options = ["Dashboard", "Đăng ký", "Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI", phe_duyet_label, "Liên hệ"]
+selected_menu = st.sidebar.radio("MENU", menu_options)
+
+# Chuẩn hóa giá trị menu
+menu = "Phê duyệt" if selected_menu.startswith("Phê duyệt") else selected_menu
 
 donvi_list = sorted(df["donvi"].dropna().unique()) if not df.empty else []
 selected = st.sidebar.multiselect("Chọn đơn vị", ["Toàn trường"] + list(donvi_list), default=["Toàn trường"])
@@ -538,34 +549,18 @@ def enforce_menu_access(menu_name):
 # 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
-# --- DASHBOARD ---
+# --- DASHBOARD (GIAO DIỆN GỌN GÀNG, KHÔNG BỊ CHIẾM DIỆN TÍCH) ---
 if menu == "Dashboard":
-    # 1. Đọc dữ liệu mới nhất để kiểm tra sự kiện chờ duyệt
-    try:
-        fresh_df = load_data_no_cache()
-    except Exception:
-        fresh_df = df.copy()
-
-    # 2. BANNER CẢNH BÁO NỔI BẬT TRÊN TRANG CHỦ KHI CÓ ĐĂNG KÝ MỚI
-    if not fresh_df.empty:
-        pending_all = fresh_df[fresh_df.apply(approval_text_from_row, axis=1) == ""]
-        if len(pending_all) > 0:
-            st.error(f"🚨 **THÔNG BÁO CHO QUẢN TRỊ VIÊN:** Hiện đang có **{len(pending_all)} sự kiện mới** đang chờ phê duyệt!")
-            with st.expander(f"👉 Xem nhanh {len(pending_all)} sự kiện chờ duyệt (hoặc chọn menu 'Phê duyệt' trên thanh điều hướng)"):
-                st.dataframe(
-                    pending_all[["event", "donvi", "start", "location", "support"]].rename(columns={
-                        "event": "Tên sự kiện", "donvi": "Đơn vị", "start": "Ngày tổ chức", "location": "Địa điểm", "support": "Hỗ trợ"
-                    }),
-                    use_container_width=True,
-                    hide_index=True
-                )
-
     if st.button("🔄 Làm mới dữ liệu lịch"):
         st.cache_data.clear()
         st.rerun()
 
-    df_dash = fresh_df if "Toàn trường" in selected or fresh_df.empty else fresh_df[fresh_df["donvi"].isin(selected)]
-    df_dash = keep_only_thong_nhat_for_calendar(df_dash)
+    try:
+        fresh_df = load_data_no_cache()
+        fresh_df = fresh_df if "Toàn trường" in selected or fresh_df.empty else fresh_df[fresh_df["donvi"].isin(selected)]
+        df_dash = keep_only_thong_nhat_for_calendar(fresh_df)
+    except Exception:
+        df_dash = keep_only_thong_nhat_for_calendar(df_f)
 
     st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện</div>', unsafe_allow_html=True)
 
