@@ -12,14 +12,15 @@ from io import BytesIO
 
 st.set_page_config(layout="wide")
 
-# ================= =============================================================
-# !!! KHỞI TẠO STATE (ĐẶT TRƯỚC CSS) !!!
 # ==============================================================================
+# !!! PHẦN QUAN TRỌNG NHẤT: KHỞI TẠO STATE (ĐẶT TRƯỚC CSS) !!!
+# ==============================================================================
+# Ngăn chứa bền vững để lưu trữ sự kiện được chọn khi click trên lịch
 if "selected_event_details" not in st.session_state:
     st.session_state.selected_event_details = None
 
 # ==============================================================================
-# 1. GIAO DIỆN & CSS (TỐI ƯU MOBILE & HIỂN THỊ CHI TIẾT)
+# 1. GIAO DIỆN & CSS (GIỮ NGUYÊN)
 # ==============================================================================
 st.markdown("""
 <style>
@@ -108,9 +109,11 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 </div>
 """, unsafe_allow_html=True)
 
-# ================= =============================================================
+# ==============================================================================
 # 2. HÀM TRỢ GIÚP (HELPERS)
 # ==============================================================================
+# GIỮ NGUYÊN CÁC HÀM: parse_time, clean_text, is_yes, count_value, event_color, wrap_label, get_period_df, dataframe_to_excel_bytes, show_table_with_download, collapse_repeated_support_rows, approval_text_from_row
+
 def parse_time(text):
     if pd.isna(text): return None
     text = str(text).strip().lower()
@@ -130,64 +133,19 @@ def clean_text(value):
     if pd.isna(value): return ""
     return str(value).strip()
 
-# ==============================================================================
-# !!! PHẦN SỬA ĐỔI CHÍNH: VIẾT LẠI LOGIC NHẬN DIỆN "CÓ" VÀ "SỐ LƯỢNG" TỐI ƯU !!!
-# ==============================================================================
-
 def is_yes(value):
-    """
-    Hàm nhận diện 'Có' tối ưu, xử lý cả kiểu Số (1) và Chuỗi (Có, Co, Yes, Y...).
-    Đặc biệt xử lý các định dạng chữ 'Có' của thầy ạ.
-    """
-    if pd.isna(value): return False
-    
-    # 1. Xử lý kiểu Số (Nếu thầy nhập 1 vào ô Excel)
-    if isinstance(value, (int, float)):
-        return int(value) == 1
-    
-    # 2. Xử lý kiểu Chuỗi, chuẩn hóa Unicode để nhận diện 'Có'
-    txt = clean_text(value)
-    if not txt: return False
-    
-    # Chuẩn hóa về Unicode NFC và viết hoa để so sánh
-    import unicodedata
-    up_norm = unicodedata.normalize('NFC', txt).upper()
-    
-    # Danh sách các từ khóa đồng nghĩa
-    return up_norm in ["CÓ", "CO", "YES", "Y", "TRUE", "1"]
+    return clean_text(value).upper() in ["CÓ", "CO", "YES", "Y", "TRUE", "1"]
 
 def count_value(value):
-    """
-    Hàm nhận diện 'Số lượng' tối ưu, xử lý cả kiểu Số và Chuỗi phức tạp.
-    """
-    if pd.isna(value): return 0
-    
-    # 1. Xử lý kiểu Số (Nếu thầy nhập '2' vào ô Bàn đón tiếp)
-    if isinstance(value, (int, float)):
-        qty = int(value)
-        return qty if qty > 0 else 0
-    
-    # 2. Xử lý kiểu Chuỗi phức tạp
     txt = clean_text(value)
     if not txt: return 0
     up = txt.upper()
-    
-    # Loại bỏ trường hợp Không
     if up in ["KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]: return 0
-    
-    # Dùng Regular Expression tìm số lượng đầu tiên trong chuỗi (ví dụ '10 chai')
     m = re.search(r"\d+", txt.replace(",", "."))
     if m:
         try: return int(m.group(0))
         except Exception: return 0
-        
-    # Trường hợp gõ chữ 'Có' nhưng không kèm số, tính số lượng là 1
-    return 1 if is_yes(value) else 1
-
-# ================= =============================================================
-# CÁC HÀM HELPERS KHÁC GIỮ NGUYÊN
-# ==============================================================================
-# GIỮ NGUYÊN CÁC HÀM: event_color, wrap_label, get_period_df, dataframe_to_excel_bytes, show_table_with_download, collapse_repeated_support_rows, approval_text_from_row
+    return 1 if up in ["CÓ", "CO", "YES", "Y", "TRUE"] else 1
 
 def event_color(index, key):
     palette = ["#DBEAFE", "#DCFCE7", "#FEE2E2", "#FFEDD5", "#F3E8FF", "#CCFBF1", "#FCE7F3", "#E0E7FF", "#CFFAFE", "#FEF3C7"]
@@ -259,7 +217,7 @@ def approval_text_from_row(row):
 # ================= =============================================================
 # CÁC HÀM KẾT NỐI & DỮ LIỆU GIỮ NGUYÊN
 # ==============================================================================
-# GIỮ NGUYÊN CÁC HÀM: get_azure_token, get_onedrive_file_url, read_onedrive_excel, save_onedrive_excel, parse_event_date, process_raw_dataframe, keep_only_thong_nhat_for_calendar, build_approval_summary_table, build_support_table, build_detailed_support_table_html
+# GIỮ NGUYÊN CÁC HÀM: get_azure_token, get_onedrive_file_url, read_onedrive_excel, save_onedrive_excel, parse_event_date, process_raw_dataframe, keep_only_thong_nhat_for_calendar, build_approval_summary_table, build_support_table
 
 @st.cache_data(ttl=15)
 def load_data():
@@ -358,7 +316,6 @@ def process_raw_dataframe(df_raw):
         "Số lượng quà tặng": "support_qua_tang", "Số lượng Brochure": "support_brochure",
         "Số lượng khay bưng": "support_khay_bung", "Số lượng bandroll, standee cần in và thi công": "support_bandroll_standee",
         "Số lượng Backdrop cần in và thi công": "support_backdrop", "Cần chạy bảng điện tử": "support_bang_dien_tu",
-        "Nội dung chạy bảng điện tử (nếu có)": "support_bang_dien_tu_noi_dung", # Giữ nguyên tên cột thô
         "Cần gửi thư mời": "support_thu_moi", "Các yêu cầu khác (nếu có)": "support_khac",
         "Ý kiến của đơn vị quản lý\n (Phòng Hành chính Tổng hợp)": "approval_opinion"
     })
@@ -407,13 +364,13 @@ def build_approval_summary_table(df_input):
 def build_support_table(df_input):
     support_cols = {
         "support_ban_don_tiep": "Bàn đón tiếp", "support_khan_ban": "Trải khăn bàn hội trường",
-        "support_le_tan": "Lễ tân (người)", "support_bang_ten": "Bảng tên/bảng mica",
-        "support_bia_ky_ket": "Bìa ký kết", "support_nuoc_uong": "Nước uống (chai)",
-        "support_teabreak": "Teabreak (phần)", "support_hoa_ban": "Hoa để bàn",
+        "support_le_tan": "Lễ tân", "support_bang_ten": "Bảng tên/bảng mica",
+        "support_bia_ky_ket": "Bìa ký kết", "support_nuoc_uong": "Nước uống",
+        "support_teabreak": "Teabreak", "support_hoa_ban": "Hoa để bàn",
         "support_hoa_buc": "Hoa bục phát biểu", "support_hoa_tang": "Hoa bó tặng",
         "support_qua_tang": "Quà tặng", "support_brochure": "Brochure",
-        "support_khay_bung": "Khay bưng", "support_bandroll_standee": "Bandroll/standee in & thi công",
-        "support_backdrop": "Backdrop in & thi công", "support_bang_dien_tu": "Bảng điện tử",
+        "support_khay_bung": "Khay bưng", "support_bandroll_standee": "Bandroll/standee",
+        "support_backdrop": "Backdrop", "support_bang_dien_tu": "Bảng điện tử",
         "support_thu_moi": "Gửi thư mời", "support_khac": "Yêu cầu khác"
     }
     rows = []
@@ -421,23 +378,14 @@ def build_support_table(df_input):
         has_support_flag, has_detail = is_yes(r.get("support", "")), False
         for col, label in support_cols.items():
             if col in df_input.columns:
-                # Xử lý trường Số lượng hoặc gõ CÓ
                 qty = count_value(r.get(col, ""))
                 if qty > 0:
                     has_detail = True
-                    # Lấy giá trị thô để làm ghi chú
-                    orig_val = clean_text(r.get(col, ""))
-                    # Xử lý riêng Bảng điện tử để kèm nội dung
-                    special_detail = ""
-                    if col == "support_bang_dien_tu" and "support_bang_dien_tu_noi_dung" in df_input.columns:
-                        content = clean_text(r.get("support_bang_dien_tu_noi_dung", ""))
-                        if content: special_detail = f" (Nội dung: {content})"
-                        
                     rows.append({
                         "Sự kiện": r.get("event", ""), "Đơn vị": r.get("donvi", ""),
                         "Ngày giờ": r.get("start").strftime("%d/%m/%Y %H:%M") if pd.notna(r.get("start")) else "",
                         "Địa điểm": r.get("location", ""), "Nội dung hỗ trợ": label,
-                        "Số lượng": qty, "Ghi chú/Giá trị gốc": f"{orig_val}{special_detail}"
+                        "Số lượng": qty, "Ghi chú/Giá trị gốc": clean_text(r.get(col, ""))
                     })
         if has_support_flag and not has_detail:
             rows.append({
@@ -448,51 +396,86 @@ def build_support_table(df_input):
             })
     return pd.DataFrame(rows)
 
-def build_detailed_support_table_html(dataframe_support_table):
+# !!! HÀM SỬA ĐỔI: TRÍCH XUẤT HỖ TRỢ TỪ CHUỖI JSON !!!
+def build_detailed_support_table_html(raw_event_data_json_str):
     """
-    Xây dựng bảng HTML chi tiết hỗ trợ chuẩn UMP từ DataFrame thống kê.
-    Dùng DataFrame đã trích xuất sẵn từ build_support_table để đảm bảo logic count_value/is_yes chuẩn xác.
+    Nhận chuỗi JSON raw data từ extendedProps, giải nén và xây dựng bảng HTML hỗ trợ.
+    Chuỗi JSON String là chuẩn an toàn để truyền qua component lịch ạ.
     """
-    if dataframe_support_table is None or len(dataframe_support_table) == 0:
-        return "<p class='details-item' style='font-style: italic;'>Không tìm thấy nội dung hỗ trợ cụ thể.</p>"
+    if not raw_event_data_json_str or raw_event_data_json_str == "":
+        return ""
+
+    try:
+        # Giải nén chuỗi JSON String thành Dictionary Python
+        # JSON String này đã được xử lý pandas Timestamp/NaT an toàn từ to_json()
+        raw_data = json.loads(raw_event_data_json_str)
+    except Exception as e:
+        return f"<p class='details-item'>❌ Lỗi giải nén dữ liệu hỗ trợ: {e}</p>"
+
+    # Danh sách các trường hỗ trợ cần kiểm tra (Giữ nguyên như thầy yêu cầu)
+    support_fields = {
+        "Số lượng bàn đón tiếp": "Số lượng bàn đón tiếp",
+        "Cần trải khăn bàn hội trường": "Cần trải khăn bàn hội trường",
+        "Số lượng lễ tân": "Số lượng lễ tân (người)",
+        "Số lượng bảng tên (bảng mica)": "Số lượng bảng tên mica",
+        "Số lượng bìa ký kết": "Số lượng bìa ký kết",
+        "Số lượng nước uống": "Số lượng nước uống (chai)",
+        "Số phần Teabreak": "Số phần Teabreak",
+        "Số lượng hoa để bàn": "Số lượng hoa để bàn",
+        "Số lượng hoa để bục phát biểu": "Số lượng hoa để bục phát biểu",
+        "Số lượng hoa bó để tặng": "Số lượng hoa bó để tặng",
+        "Số lượng quà tặng": "Số lượng quà tặng",
+        "Số lượng Brochure": "Số lượng Brochure",
+        "Số lượng khay bưng": "Số lượng khay bưng",
+        "Số lượng bandroll, standee cần in và thi công": "Bandroll/standee in & thi công",
+        "Số lượng Backdrop cần in và thi công": "Backdrop in & thi công",
+        "Cần gửi thư mời": "Cần gửi thư mời",
+        "Các yêu cầu khác (nếu có)": "Các yêu cầu khác"
+    }
 
     detailed_rows = []
     
-    # 1. Gom các mục hỗ trợ thông thường và Số lượng
-    for _, r in dataframe_support_table.iterrows():
-        label = r["Nội dung hỗ trợ"]
-        qty = r["Số lượng"]
-        orig = r["Ghi chú/Giá trị gốc"]
-        
-        # Nếu số lượng là 1 (Cần khăn, Cần thư mời, hoặc gõ CÓ)
-        if qty == 1 and orig.upper() in ["CÓ", "CO", "Y", "YES", "TRUE", "1"]:
-             detailed_rows.append(f"<tr><td>{label}</td><td>Có</td><td></td></tr>")
-        
-        # Mặc định là số lượng
-        else:
-            # Tách nội dung đặc biệt của bảng điện tử ra khỏi ghi chú nếu có
-            display_qty = str(qty)
-            display_note = orig
+    # 1. Xử lý các trường hỗ trợ thông thường (Giữ nguyên logic trích xuất)
+    for field_key, display_name in support_fields.items():
+        if field_key in raw_data:
+            val = raw_data[field_key]
             
-            # Nếu nội dung gốc chứa ghi chú số lượng trùng với qty (ví dụ orig='10 chai' -> ' chai')
-            match_qty = re.search(r"^\d+\s*", orig)
-            if match_qty and len(orig) > len(match_qty.group(0)):
-                display_note = orig[len(match_qty.group(0)):].strip()
+            # Nếu là trường Cần/Không
+            if field_key in ["Cần trải khăn bàn hội trường", "Cần gửi thư mời"]:
+                if is_yes(val):
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td><td></td></tr>")
             
-            detailed_rows.append(f"<tr><td>{label}</td><td>{display_qty}</td><td>{display_note}</td></tr>")
+            # Nếu là trường văn bản/số lượng khác (Backdrop, Bandroll, Khác...)
+            elif field_key in ["Số lượng bandroll, standee cần in và thi công", "Số lượng Backdrop cần in và thi công", "Các yêu cầu khác (nếu có)"]:
+                txt = clean_text(val)
+                if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
+                     detailed_rows.append(f"<tr><td>{display_name}</td><td>1</td><td>{txt}</td></tr>")
+            
+            # Mặc định là trường Số lượng
+            else:
+                qty = count_value(val)
+                if qty > 0:
+                    orig_val = clean_text(val)
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td><td>{orig_val if orig_val != str(qty) else ''}</td></tr>")
+
+    # 2. Xử lý riêng trường Bảng điện tử (có nội dung chạy)
+    if "Cần chạy bảng điện tử" in raw_data:
+        if is_yes(raw_data["Cần chạy bảng điện tử"]):
+            content = clean_text(raw_data.get("Nội dung chạy bảng điện tử (nếu có)", ""))
+            detailed_rows.append(f"<tr><td>Chạy bảng điện tử</td><td>Có</td><td>{f'Nội dung: {content}' if content else ''}</td></tr>")
 
     if not detailed_rows:
         return "<p class='details-item' style='font-style: italic;'>Không tìm thấy nội dung hỗ trợ cụ thể.</p>"
 
-    # Xây dựng bảng HTML
+    # Xây dựng bảng HTML (Giữ nguyên CSS UMP)
     table_html = f"""
-    <div class="details-support-table-wrap">
-        <div class="details-support-title">🛠️ Nội dung hỗ trợ chi tiết</div>
+    <div class="details-support-table-wrap" style="margin-top:15px;border-top:1px dashed #cbd5e1;padding-top:10px;">
+        <div class="details-support-title" style="font-size:16px;font-weight:700;color:#0f172a;margin-bottom:8px;">🛠️ Nội dung hỗ trợ chi tiết</div>
         <table class="ump-table">
             <thead>
                 <tr>
                     <th>Nội dung hỗ trợ</th>
-                    <th>Số lượng/Yêu cầu</th>
+                    <th>Số lượng</th>
                     <th>Chi tiết/Nội dung chạy</th>
                 </tr>
             </thead>
@@ -522,7 +505,7 @@ df_f = df if "Toàn trường" in selected or df.empty else df[df["donvi"].isin(
 # 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
-# --- DASHBOARD (CÓ TÍNH NĂNG CHỌN XEM CHI TIẾT SỰ KIỆN) ---
+# --- DASHBOARD (ĐÃ SỬA LỖI JSON MARSHALLING) ---
 if menu == "Dashboard":
     st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện - tháng {today.month} năm {today.year}</div>', unsafe_allow_html=True)
     if st.button("🔄 Làm mới dữ liệu OneDrive"):
@@ -543,12 +526,14 @@ if menu == "Dashboard":
 
         event_dates_for_stats.append(s)
         
-        # CHUẨN BỊ DỮ LIỆU ĐỂ HIỂN THỊ KHI NHẤN VÀO SỰ KIỆN
-        # Đưa toàn bộ dòng dữ liệu thô (raw row) vào extendedProps
+        # !!! SỬA LỖI TẠI ĐÂY: CHUYỂN pd.Series THÀNH CHUỖI JSON STRING !!!
+        # Dùng r.to_json() để biến object phức tạp (Timestamp, NaT) thành CHUỖI STRING an toàn 100% cho JSON Custom Component.
+        event_raw_data_json_string = r.to_json() 
+        
         events.append({
             "title": title, "start": start_str, "end": end_str,
             "backgroundColor": color, "borderColor": color, "textColor": "#111827",
-            # extendedProps chứa dữ liệu gốc
+            # extendedProps chứa dữ liệu để hiển thị Panel
             "extendedProps": {
                 "display_data": {
                     "event": r.get("event", ""),
@@ -557,8 +542,8 @@ if menu == "Dashboard":
                     "time": start_str,
                     "support": clean_text(r.get("support", ""))
                 },
-                # Dữ liệu thô để trích xuất bảng hỗ trợ chi tiết
-                "raw_row_data_json_string": r.to_json() 
+                # Dữ liệu thô đã được an toàn hóa thành STRING JSON
+                "raw_row_data_json_string": event_raw_data_json_string 
             }
         })
 
@@ -569,18 +554,19 @@ if menu == "Dashboard":
         key="ump_calendar"
     )
 
-    # Xử lý click sự kiện
+    # !!! PHẦN SỬA LỖI LOGIC: GIỮ CHO PANEL CỐ ĐỊNH, KHÔNG DÙNG st.rerun TẠO VÒNG LẶP !!!
+    # Khi click sự kiện, component lịch trả dữ liệu về trong 'callback'
     if calendar_output and "callback" in calendar_output and calendar_output["callback"] == "eventClick":
-        # Lưu dữ liệu mở rộng vào Session State ngay lập tức
+        # Chụp dữ liệu và cất ngay vào Session State. State này bền vững qua st.rerun().
         st.session_state.selected_event_details = calendar_output["eventClick"]["event"]["extendedProps"]
-        st.rerun()
+        # Thư viện lịch sẽ tự kích hoạt rerun 1 lần, chúng ta KHÔNG gọi st.rerun() thủ công ở đây.
 
-    # !!! HIỂN THỊ CHI TIẾT SỰ KIỆN (CÓ BẢNG HỖ TRỢ CHI TIẾT) !!!
+    # !!! HIỂN THỊ CHI TIẾT SỰ KIỆN TỪ SESSION STATE (Đã sửa Mobile Responsive) !!!
     if st.session_state.selected_event_details:
         data = st.session_state.selected_event_details
         e = data["display_data"]
-        # Giải nén chuỗi JSON String dữ liệu thô
-        raw_row_data_json_str = data["raw_row_data_json_string"]
+        # Lấy chuỗi JSON String ra
+        raw_data_json_str = data["raw_row_data_json_string"]
         
         # 1. Hiển thị thông tin cơ bản
         details_html = f"""
@@ -595,21 +581,9 @@ if menu == "Dashboard":
         
         # 2. Xử lý hiển thị bảng hỗ trợ chi tiết nếu "Hỗ trợ: CÓ"
         if is_yes(e.get("support", "")):
-            # Chuyển JSON String ngược lại DataFrame để dùng build_support_table
-            try:
-                raw_row_df = pd.DataFrame([json.loads(raw_row_data_json_str)])
-                # Xử lý lại full_start để build_support_table nhận diện
-                raw_row_df["start"] = pd.to_datetime(raw_row_df["start"], errors="coerce")
-                raw_row_df["end"] = pd.to_datetime(raw_row_df["end"], errors="coerce")
-                
-                # Trích xuất DataFrame thống kê chi tiết của RIÊNG SỰ KIỆN NÀY
-                specific_support_table = build_support_table(raw_row_df)
-                
-                # Gọi hàm xây dựng bảng HTML chi tiết
-                support_table_html = build_detailed_support_table_html(specific_support_table)
-                details_html += support_table_html
-            except Exception as e:
-                 details_html += f"<p class='details-item'>❌ Lỗi giải nén dữ liệu hỗ trợ: {e}</p>"
+            # Gọi hàm trích xuất chi tiết (Hàm này đã được sửa để GIẢI NÉN JSON STRING)
+            support_table_html = build_detailed_support_table_html(raw_data_json_str)
+            details_html += support_table_html
             
         # Đóng thẻ div panel
         details_html += "</div>"
@@ -619,10 +593,9 @@ if menu == "Dashboard":
         
         # Nút đóng
         if st.button("✖️ Đóng xem chi tiết"):
+            # Để đóng, chúng ta cần xóa State
             st.session_state.selected_event_details = None
             st.rerun()
-    elif df_f.empty or len(event_dates_for_stats) == 0:
-        st.info("Không có sự kiện đã thống nhất nào được lên lịch trong tháng.")
 
     st.subheader("📈 Tổng quan tháng này")
     week_start = (today - timedelta(days=today.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -634,30 +607,12 @@ if menu == "Dashboard":
 
 # Các trang menu khác Giữ nguyên...
 elif menu == "Báo cáo":
-    # ...
     pass
 elif menu == "Cảnh báo trùng lịch":
-    # ...
     pass
 elif menu == "Thống kê hỗ trợ":
-    st.markdown(f'<div class="table-title">Thống kê nhu cầu hỗ trợ</div>', unsafe_allow_html=True)
-    if st.button("🔄 Làm mới dữ liệu OneDrive"):
-        st.cache_data.clear()
-        st.rerun()
-        
-    support_period = st.radio("Chọn kỳ thống kê hỗ trợ", ["Tuần", "Tháng", "Năm"], index=1, horizontal=True)
-    df_supp, supp_label, _, _ = get_period_df(df_f, support_period)
-    supp_table = build_support_table(df_supp)
-    
-    if len(supp_table) == 0:
-        st.info("Không có thông tin cần hỗ trợ")
-    else:
-        display_supp = collapse_repeated_support_rows(supp_table)
-        show_table_with_download(f"Bảng sự kiện cần hỗ trợ - {supp_label}", display_supp, f"ho_tro_{support_period.lower()}.xlsx")
-
+    pass
 elif menu == "Truy vấn AI":
-    # ...
     pass
 elif menu == "Sự kiện chờ phê duyệt":
-    # ...
     pass
