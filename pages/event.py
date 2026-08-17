@@ -348,8 +348,8 @@ def build_support_table(df_input):
         "support_hoa_buc": "Hoa bục phát biểu", "support_hoa_tang": "Hoa bó tặng",
         "support_qua_tang": "Quà tặng", "support_brochure": "Brochure",
         "support_khay_bung": "Khay bưng", "support_bandroll_standee": "Bandroll/standee in & thi công",
-        "support_backdrop": "Backdrop in & thi công", "support_bang_dien_tu": "Bảng điện tử",
-        "support_thu_moi": "Gửi thư mời", "support_khac": "Các yêu cầu khác"
+        "support_backdrop": "Backdrop in & thi công", "support_thu_moi": "Gửi thư mời",
+        "support_khac": "Các yêu cầu khác"
     }
     rows = []
     for _, r in df_input.iterrows():
@@ -357,40 +357,19 @@ def build_support_table(df_input):
         has_support_flag, has_detail = is_yes(r.get("support", "")), False
         for col, label in support_cols.items():
             if col in df_input.columns:
-                if col == "support_bang_dien_tu":
-                    val_bang = clean_text(r.get("support_bang_dien_tu", ""))
-                    content_bang = clean_text(r.get("Nội dung chạy bảng điện tử (nếu có)", ""))
-                    if not content_bang and val_bang and val_bang.upper() not in ["CÓ", "CO", "YES", "Y", "TRUE", "1", "KHÔNG", "KHONG", "NO", "N", "FALSE", "0"]:
-                        content_bang = val_bang
-                    if is_yes(val_bang) or content_bang:
-                        has_detail = True
-                        rows.append({
-                            "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
-                            "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
-                            "Nội dung hỗ trợ": label, "Số lượng": 1, "Ghi chú/Giá trị gốc": f"<b>{content_bang}</b>" if content_bang else ""
-                        })
-                else:
-                    qty = count_value(r.get(col, ""))
-                    if qty > 0:
-                        has_detail = True
-                        orig_val = clean_text(r.get(col, ""))
-                        display_note = orig_val
-                        try:
-                            if float(orig_val) == qty or orig_val == str(qty):
-                                display_note = ""
-                        except Exception:
-                            if orig_val.upper() in ["CÓ", "CO", "YES", "Y", "TRUE", "1"]:
-                                display_note = ""
-                        rows.append({
-                            "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
-                            "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
-                            "Nội dung hỗ trợ": label, "Số lượng": qty, "Ghi chú/Giá trị gốc": display_note
-                        })
+                qty = count_value(r.get(col, ""))
+                if qty > 0:
+                    has_detail = True
+                    rows.append({
+                        "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
+                        "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
+                        "Nội dung hỗ trợ": label, "Số lượng": qty
+                    })
         if has_support_flag and not has_detail:
             rows.append({
                 "Sự kiện": clean_text(r.get("event", "")), "Đơn vị": clean_text(r.get("donvi", "")),
                 "Ngày giờ": datetime_full, "Địa điểm": clean_text(r.get("location", "")),
-                "Nội dung hỗ trợ": "Có yêu cầu hỗ trợ", "Số lượng": 1, "Ghi chú/Giá trị gốc": clean_text(r.get("support", ""))
+                "Nội dung hỗ trợ": "Có yêu cầu hỗ trợ", "Số lượng": 1
             })
     return pd.DataFrame(rows)
 
@@ -426,21 +405,12 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
             if field_key in ["support_bandroll_standee", "support_backdrop", "support_khac"]:
                 txt = clean_text(val)
                 if txt and txt.upper() not in ["KHÔNG", "NONE", "N/A"]:
-                    display_note = "" if txt.upper() in ["CÓ", "CO", "YES", "Y", "TRUE", "1"] else txt
-                    detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td><td>{display_note}</td></tr>")
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>Có</td></tr>")
             
             else:
                 qty = count_value(val)
                 if qty > 0:
-                    orig_val = clean_text(val)
-                    display_note = orig_val
-                    try:
-                        if float(orig_val) == qty or orig_val == str(qty):
-                            display_note = ""
-                    except Exception:
-                        if orig_val.upper() in ["CÓ", "CO", "YES", "Y", "TRUE", "1"]:
-                            display_note = ""
-                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td><td>{display_note}</td></tr>")
+                    detailed_rows.append(f"<tr><td>{display_name}</td><td>{qty}</td></tr>")
 
     if not detailed_rows:
         return ""
@@ -453,7 +423,6 @@ def build_detailed_support_table_html(raw_event_data_dictionary):
                 <tr>
                     <th>Nội dung hỗ trợ</th>
                     <th>Số lượng/Yêu cầu</th>
-                    <th>Chi tiết/Nội dung chạy</th>
                 </tr>
             </thead>
             <tbody>
