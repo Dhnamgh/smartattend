@@ -242,34 +242,49 @@ def collapse_repeated_support_rows(dataframe):
     return df_out
 
 def send_notification_email(event_name, donvi, start_dt, location):
+    """Gửi email thông báo tự động cho Quản trị viên - Hỗ trợ cả Port 587 (TLS) và 465 (SSL)"""
     try:
         cfg = st.secrets.get("email", {})
-        if not cfg or "sender_email" not in cfg: return False
+        if not cfg or "sender_email" not in cfg:
+            return False
+            
         admin_email = cfg.get("admin_email", "chuyendoiso@ump.edu.vn")
+        sender = cfg["sender_email"].strip()
+        pwd = cfg["sender_password"].strip().replace(" ", "")  # Xóa khoảng trắng thừa nếu có
+        port = int(cfg.get("smtp_port", 587))
+        server_host = cfg.get("smtp_server", "smtp.gmail.com").strip()
+
         msg = MIMEMultipart()
-        msg['From'] = cfg["sender_email"]
+        msg['From'] = sender
         msg['To'] = admin_email
         msg['Subject'] = f"🔔 [UMP EVENT] Yêu cầu phê duyệt sự kiện mới: {event_name}"
-        body = f"""
-        Kính gửi Quản trị viên,
+        
+        body = f"""Kính gửi Quản trị viên,
 
-        Hệ thống vừa ghi nhận một sự kiện mới cần phê duyệt:
-        - Tên sự kiện: {event_name}
-        - Đơn vị tổ chức: {donvi}
-        - Thời gian: {start_dt.strftime('%d/%m/%Y %H:%M')}
-        - Địa điểm: {location}
+Hệ thống vừa ghi nhận một sự kiện mới cần phê duyệt:
+- Tên sự kiện: {event_name}
+- Đơn vị tổ chức: {donvi}
+- Thời gian: {start_dt.strftime('%d/%m/%Y %H:%M')}
+- Địa điểm: {location}
 
-        Vui lòng truy cập Phân hệ Phê duyệt trên ứng dụng UMP Event để xử lý.
-        Trân trọng.
-        """
+Vui lòng truy cập Phân hệ Phê duyệt trên ứng dụng UMP Event để xử lý.
+Trân trọng."""
+        
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
-        server = smtplib.SMTP(cfg["smtp_server"], cfg["smtp_port"])
-        server.starttls()
-        server.login(cfg["sender_email"], cfg["sender_password"])
+
+        if port == 465:
+            server = smtplib.SMTP_SSL(server_host, port, timeout=10)
+        else:
+            server = smtplib.SMTP(server_host, port, timeout=10)
+            server.starttls()
+
+        server.login(sender, pwd)
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e: return False
+    except Exception as e:
+        st.warning(f"⚠️ Không thể gửi email thông báo tự động: {e}")
+        return False
 
 # ==============================================================================
 # 3. KẾT NỐI ONEDRIVE CỐ ĐỊNH /OGSM/EVENT/Danh_sach_su_kien.xlsx
