@@ -540,7 +540,14 @@ if menu == "Dashboard":
 
     calendar_output = calendar(
         events=events,
-        options={"initialView": "dayGridMonth", "locale": "vi", "firstDay": 1, "height": "auto", "eventDisplay": "block"},
+        options={
+            "initialView": "dayGridMonth", 
+            "locale": "vi", 
+            "firstDay": 1, 
+            "height": "auto", 
+            "eventDisplay": "block",
+            "displayEventTime": False
+        },
         key="ump_calendar"
     )
 
