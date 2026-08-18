@@ -144,23 +144,43 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ================= 3. THANH MENU ĐIỀU HƯỚNG BẰNG NÚT BẤM =================
-st.markdown('<div class="navbar-container">', unsafe_allow_html=True)
-col1, col2, col3, col_pad = st.columns([2, 2, 2, 4])
+# ==================== 3. THANH MENU ĐIỀU HƯỚNG BẰNG NÚT BẤM ====================
+st.markdown("""
+<style>
+    /* Ép các cột chứa nút bấm luôn dàn hàng ngang trên Mobile */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div {
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
+    }
+    /* Chỉnh nút bấm gọn gàng, vừa vặn màn hình điện thoại */
+    div[data-testid="stHorizontalBlock"] button {
+        width: 100% !important;
+        padding: 6px 2px !important;
+        font-size: 13px !important;
+        white-space: nowrap !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("Điểm danh UMP", use_container_width=True):
+    if st.button("📋 Điểm danh", use_container_width=True):
         st.switch_page("app.py")
 
 with col2:
-    if st.button("Sự kiện & Event", use_container_width=True):
+    if st.button("🎪 Sự kiện", use_container_width=True):
         st.switch_page("pages/event.py")
 
 with col3:
-    if st.button("Quản trị OGSM", use_container_width=True):
+    if st.button("📊 OGSM", use_container_width=True):
         st.switch_page("pages/ogsm.py")
-
-st.markdown('</div>', unsafe_allow_html=True)
 
 # ================= PHẦN CODE XỬ LÝ CHÍNH CỦA APP ĐIỂM DANH BẮT ĐẦU TỪ ĐÂY =================
 
