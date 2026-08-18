@@ -513,13 +513,13 @@ with tabs[0]:
             st.info("✅ Vị trí GPS hợp lệ (Đã xác thực trong khu vực)")
         else:
             campus_display_name = "Không xác định"
-            st.markdown('<div class="status-box-error">Cảnh báo: Vị trí GPS không hợp lệ (Ngoài phạm vi quy định)!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-box-error">❌ Cảnh báo: Vị trí GPS không hợp lệ (Ngoài phạm vi quy định)!</div>', unsafe_allow_html=True)
 
         ip_valid = False
         if detected_campus_info and user_ip:
             ip_valid = any(user_ip.startswith(prefix) for prefix in ALLOWED_IP_PREFIXES)
-            if ip_valid: st.markdown('<div class="status-box-success">IP Mạng Hợp lệ (Wi-Fi trường)</div>', unsafe_allow_html=True)
-            else: st.markdown('<div class="status-box-error">Cảnh báo: IP không thuộc Wi-Fi trường</div>', unsafe_allow_html=True)
+            if ip_valid: st.markdown('<div class="status-box-success"> ✅ IP Mạng Hợp lệ (Wi-Fi trường)</div>', unsafe_allow_html=True)
+            else: st.markdown('<div class="status-box-error">❌ Cảnh báo: IP không thuộc Wi-Fi trường</div>', unsafe_allow_html=True)
 
     btn_confirm = st.button("XÁC NHẬN ĐIỂM DANH", use_container_width=True)
 
