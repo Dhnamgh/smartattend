@@ -510,10 +510,10 @@ with tabs[0]:
         if detected_campus_info and curr_dist <= MAX_ALLOWED_RADIUS:
             campus_display_name = f"{detected_campus_info['name']} ({detected_campus_info['address']})"
             st.success(f"Đã chọn: **{detected_campus_info['name']}**")
-            st.info(f"GPS: {curr_dist:.1f} m (Bán kính hợp lệ <= {int(MAX_ALLOWED_RADIUS)}m)")
+            st.info("✅ Vị trí GPS hợp lệ (Đã xác thực trong khu vực)")
         else:
             campus_display_name = "Không xác định"
-            st.markdown(f'<div class="status-box-error">Cảnh báo: Khoảng cách GPS ({curr_dist:.1f}m) nằm ngoài bán kính {int(MAX_ALLOWED_RADIUS)}m!</div>', unsafe_allow_html=True)
+            st.markdown('<div class="status-box-error">Cảnh báo: Vị trí GPS không hợp lệ (Ngoài phạm vi quy định)!</div>', unsafe_allow_html=True)
 
         ip_valid = False
         if detected_campus_info and user_ip:
