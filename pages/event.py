@@ -762,7 +762,7 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
         if not supp_t.empty: show_table_with_download(f"{label}", collapse_repeated_support_rows(supp_t), f"ht_{period}.xlsx", compact=True)
         else: st.info("Không yêu cầu hỗ trợ.")
     # --- BÁO CÁO & CẢNH BÁO & HỖ TRỢ & TRUY VẤN AI ---
-elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
+elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ"]:
     if not enforce_menu_access(menu): st.stop()
     if menu == "Báo cáo":
         st.markdown('<div class="table-title">📊 Báo cáo</div>', unsafe_allow_html=True)
