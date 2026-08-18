@@ -8,32 +8,36 @@ import os
 from pathlib import Path
 import streamlit as st
 
-# 0. ==================== KÍCH HOẠT KHÓA BẢO MẬT OGSM ====================
+# 0. ============================ KÍCH HOẠT KHÓA BẢO MẬT OGSM ============================
 def check_ogsm_password():
     if st.session_state.get("ogsm_authenticated", False):
         return True
 
-    st.title("🔒 BẢO MẬT PHÂN HỆ OGSM")
+    st.title("🔒 BÁO MẬT PHÂN HỆ OGSM")
     st.caption("Vui lòng nhập mật khẩu để truy cập hệ thống Quản trị OGSM.")
 
-    # Đọc mật khẩu ogsm_password ở đầu file Secrets
-    correct_password = st.secrets.get("ogsm_password")
+    # Đọc mật khẩu trực tiếp và xóa khoảng trắng thừa
+    correct_password = str(st.secrets.get("ogsm_password", "")).strip()
 
-# Dòng kiểm tra tạm thời (xem app có đọc được không):
-if not correct_password:
-    st.warning(f"⚠️ Chưa tìm thấy biến ogsm_password! Các key hiện có: {list(st.secrets.keys())}")
+    # Kiểm tra xem đã cấu hình key ogsm_password trong Secrets chưa
+    if not correct_password:
+        st.error("⚠️ Chưa tìm thấy cấu hình 'ogsm_password' trong Streamlit Secrets! Vui lòng kiểm tra lại Settings > Secrets.")
+        st.stop()
 
     with st.form("ogsm_login_form"):
         user_input = st.text_input("Mật khẩu truy cập OGSM:", type="password")
         if st.form_submit_button("Đăng nhập"):
-            if user_input == correct_password:
+            if user_input.strip() == correct_password:
                 st.session_state["ogsm_authenticated"] = True
                 st.success("Xác thực thành công!")
                 st.rerun()
             else:
                 st.error("❌ Mật khẩu không chính xác!")
-    
-    st.stop() # Dừng không cho tải dữ liệu bên dưới nếu chưa đăng nhập
+
+    st.stop()  # Dừng không cho tải nội dung bên dưới nếu chưa đăng nhập
+
+# Gọi hàm bảo mật
+check_ogsm_password()
 
 check_ogsm_password()
 
