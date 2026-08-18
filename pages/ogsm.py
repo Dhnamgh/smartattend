@@ -13,10 +13,10 @@ def check_ogsm_password():
     if st.session_state.get("ogsm_authenticated", False):
         return True
 
-    st.title("🔒 BÁO MẬT PHÂN HỆ OGSM")
+    st.title("🔒 BẢO MẬT PHÂN HỆ OGSM")
     st.caption("Vui lòng nhập mật khẩu để truy cập hệ thống Quản trị OGSM.")
 
-    # 1. Quét tìm mật khẩu trong toàn bộ Secrets (kể cả lồng khối)
+    # Quét tìm mật khẩu trong Secrets (tự động nhận diện mọi vị trí)
     correct_password = ""
     if "ogsm_password" in st.secrets:
         correct_password = str(st.secrets["ogsm_password"]).strip()
@@ -26,11 +26,10 @@ def check_ogsm_password():
                 correct_password = str(v["ogsm_password"]).strip()
                 break
 
-    # Nếu vẫn chưa nạp được Secrets, dùng tạm mật khẩu này để app hoạt động ngay
     if not correct_password:
-        correct_password = "ogsm"
+        st.error("⚠️ Chưa tìm thấy cấu hình 'ogsm_password' trong Streamlit Secrets! Vui lòng kiểm tra lại Settings > Secrets.")
+        st.stop()
 
-    # 2. Form đăng nhập
     with st.form("ogsm_login_form"):
         user_input = st.text_input("Mật khẩu truy cập OGSM:", type="password")
         if st.form_submit_button("Đăng nhập"):
