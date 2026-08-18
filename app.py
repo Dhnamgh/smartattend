@@ -147,19 +147,18 @@ st.markdown("""
 # ==================== 3. THANH MENU ĐIỀU HƯỚNG BẰNG NÚT BẤM ====================
 st.markdown("""
 <style>
-    /* Ép các cột chứa nút bấm luôn dàn hàng ngang trên Mobile */
-    div[data-testid="stHorizontalBlock"] {
+    /* CHỈ tác động lên hàng cột đầu tiên (chứa 3 nút menu), không ảnh hưởng các form bên dưới */
+    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: 6px !important;
     }
-    div[data-testid="stHorizontalBlock"] > div {
+    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type > div {
         flex: 1 1 0% !important;
         min-width: 0 !important;
     }
-    /* Chỉnh nút bấm gọn gàng, vừa vặn màn hình điện thoại */
-    div[data-testid="stHorizontalBlock"] button {
+    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type button {
         width: 100% !important;
         padding: 6px 2px !important;
         font-size: 13px !important;
