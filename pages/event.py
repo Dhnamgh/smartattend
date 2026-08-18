@@ -523,7 +523,8 @@ selected_menu = st.sidebar.radio("MENU", menu_options)
 
 # Chuẩn hóa giá trị menu
 menu = "Phê duyệt" if selected_menu.startswith("Phê duyệt") else selected_menu
-
+if not df.empty and "donvi" in df.columns:
+    df["donvi"] = df["donvi"].replace({"Khoa Y": "Trường Y"})
 donvi_list = sorted(df["donvi"].dropna().unique()) if not df.empty else []
 selected = st.sidebar.multiselect("Chọn đơn vị", ["Toàn trường"] + list(donvi_list), default=["Toàn trường"])
 st.sidebar.write("✅ Đang chọn:", ", ".join(selected))
