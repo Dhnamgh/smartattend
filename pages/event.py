@@ -764,6 +764,7 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
     # --- BÁO CÁO & CẢNH BÁO & HỖ TRỢ & TRUY VẤN AI ---
 elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
     if not enforce_menu_access(menu): st.stop()
+    
     if menu == "Báo cáo":
         st.markdown('<div class="table-title">📊 Báo cáo</div>', unsafe_allow_html=True)
         report_period = st.radio("Kỳ báo cáo", ["Tuần", "Tháng", "Năm"], horizontal=True, label_visibility="collapsed")
@@ -775,6 +776,7 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
             table_r = summary[["donvi", "Sự kiện"]].rename(columns={"donvi": "Đơn vị"}).reset_index(drop=True)
             table_r.insert(0, "STT", table_r.index + 1); show_table_with_download(f"{label}", table_r, f"bc_{report_period}.xlsx", compact=True)
         else: st.info(f"Không có dữ liệu {label}.")
+        
     elif menu == "Cảnh báo":
         st.markdown('<div class="table-title">⚠️ Cảnh báo trùng lịch</div>', unsafe_allow_html=True)
         period = st.radio("Cảnh báo", ["Tuần", "Tháng"], horizontal=True, label_visibility="collapsed")
@@ -786,6 +788,7 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
                 conf.append({"Thời gian": a["start"].strftime("%d/%m/%Y %H:%M"), "Sự kiện 1": clean_text(a["event"]), "Sự kiện 2": clean_text(b["event"]), "Mức độ": "Trùng địa điểm" if clean_text(a["location"]).lower() == clean_text(b["location"]).lower() else "Trùng giờ"})
         if not conf: st.success(f"{label} không trùng lịch.")
         else: show_table_with_download(f"{label}", pd.DataFrame(conf), f"cb_{period}.xlsx", compact=True)
+        
     elif menu == "Hỗ trợ":
         st.markdown('<div class="table-title">Hỗ trợ</div>', unsafe_allow_html=True)
         period = st.radio("Hỗ trợ", ["Tuần", "Tháng"], horizontal=True, label_visibility="collapsed")
@@ -793,51 +796,41 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
         supp_t = build_support_table(df_supp)
         if not supp_t.empty: show_table_with_download(f"{label}", collapse_repeated_support_rows(supp_t), f"ht_{period}.xlsx", compact=True)
         else: st.info("Không yêu cầu hỗ trợ.")
-# --- TRUY VẤN AI (ĐỘC LẬP) ---
-elif menu == "Truy vấn AI":
-    if not enforce_menu_access(menu):
-        st.stop()
         
-    st.markdown('<div class="table-title">🧠 Truy vấn AI</div>', unsafe_allow_html=True)
-    q = st.text_input("Gõ câu hỏi (Ví dụ: tháng 7, tuần, năm, hỗ trợ, tên sự kiện/đơn vị...):", key="ai_search_box")
-    
-    if q:
-        low = q.lower().strip()
-        month_match = re.search(r"(?:tháng|thang|t)\s*(\d{1,2})", low)
-        
-        if "hỗ trợ" in low or "ht" in low:
-            show_table_with_download("KQ AI Hỗ trợ", collapse_repeated_support_rows(build_support_table(df_f)), "ai_ht.xlsx", compact=True)
-            
-        elif month_match:
-            target_month = int(month_match.group(1))
-            if 1 <= target_month <= 12:
-                df_filtered = df_f[pd.to_datetime(df_f["start"], errors="coerce").dt.month == target_month].copy()
-                show_table_with_download(f"KQ AI - Sự kiện Tháng {target_month}", build_approval_summary_table(df_filtered), f"ai_thang_{target_month}.xlsx", compact=True)
+    elif menu == "Truy vấn AI":
+        st.markdown('<div class="table-title">🧠 Truy vấn AI</div>', unsafe_allow_html=True)
+        q = st.text_input("Gõ câu hỏi (Ví dụ: tháng 7, tuần, năm, hỗ trợ, tên sự kiện/đơn vị...):", key="ai_search_box")
+        if q:
+            low = q.lower().strip()
+            month_match = re.search(r"(?:tháng|thang|t)\s*(\d{1,2})", low)
+            if "hỗ trợ" in low or "ht" in low:
+                show_table_with_download("KQ AI Hỗ trợ", collapse_repeated_support_rows(build_support_table(df_f)), "ai_ht.xlsx", compact=True)
+            elif month_match:
+                target_month = int(month_match.group(1))
+                if 1 <= target_month <= 12:
+                    df_filtered = df_f[pd.to_datetime(df_f["start"], errors="coerce").dt.month == target_month].copy()
+                    show_table_with_download(f"KQ AI - Sự kiện Tháng {target_month}", build_approval_summary_table(df_filtered), f"ai_thang_{target_month}.xlsx", compact=True)
+                else:
+                    st.warning("Tháng không hợp lệ (Vui lòng nhập từ tháng 1 đến 12).")
+            elif "tuần" in low:
+                df_res, label, _, _ = get_period_df(df_f, "Tuần")
+                show_table_with_download(f"KQ AI - {label}", build_approval_summary_table(df_res), "ai_tuan.xlsx", compact=True)
+            elif "tháng" in low or "thang" in low:
+                df_res, label, _, _ = get_period_df(df_f, "Tháng")
+                show_table_with_download(f"KQ AI - {label}", build_approval_summary_table(df_res), "ai_thang.xlsx", compact=True)
+            elif "năm" in low or "nam" in low:
+                df_res, label, _, _ = get_period_df(df_f, "Năm")
+                show_table_with_download(f"KQ AI - {label}", build_approval_summary_table(df_res), "ai_nam.xlsx", compact=True)
             else:
-                st.warning("Tháng không hợp lệ (Vui lòng nhập từ tháng 1 đến 12).")
-                
-        elif "tuần" in low:
-            df_res, label, _, _ = get_period_df(df_f, "Tuần")
-            show_table_with_download(f"KQ AI - {label}", build_approval_summary_table(df_res), "ai_tuan.xlsx", compact=True)
-            
-        elif "tháng" in low or "thang" in low:
-            df_res, label, _, _ = get_period_df(df_f, "Tháng")
-            show_table_with_download(f"KQ AI - {label}", build_approval_summary_table(df_res), "ai_thang.xlsx", compact=True)
-            
-        elif "năm" in low or "nam" in low:
-            df_res, label, _, _ = get_period_df(df_f, "Năm")
-            show_table_with_download(f"KQ AI - {label}", build_approval_summary_table(df_res), "ai_nam.xlsx", compact=True)
-            
-        else:
-            df_kw = df_f[
-                df_f["event"].astype(str).str.lower().str.contains(low, na=False) |
-                df_f["donvi"].astype(str).str.lower().str.contains(low, na=False) |
-                df_f["location"].astype(str).str.lower().str.contains(low, na=False)
-            ].copy()
-            if not df_kw.empty:
-                show_table_with_download(f"KQ AI - Tìm kiếm cho '{q}'", build_approval_summary_table(df_kw), "ai_tim_kiem.xlsx", compact=True)
-            else:
-                st.warning("Không tìm thấy kết quả phù hợp. Thử lại với: tháng 7, tuần, hỗ trợ, hoặc tên đơn vị.") 
+                df_kw = df_f[
+                    df_f["event"].astype(str).str.lower().str.contains(low, na=False) |
+                    df_f["donvi"].astype(str).str.lower().str.contains(low, na=False) |
+                    df_f["location"].astype(str).str.lower().str.contains(low, na=False)
+                ].copy()
+                if not df_kw.empty:
+                    show_table_with_download(f"KQ AI - Tìm kiếm cho '{q}'", build_approval_summary_table(df_kw), "ai_tim_kiem.xlsx", compact=True)
+                else:
+                    st.warning("Không tìm thấy kết quả phù hợp. Thử lại với: tháng 7, tuần, hỗ trợ, hoặc tên đơn vị.")
 
 # --- PHÊ DUYỆT (TỐI ƯU CẢNH BÁO CHO MOBILE) ---
 elif menu == "Phê duyệt":
