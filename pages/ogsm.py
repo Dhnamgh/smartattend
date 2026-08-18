@@ -19,6 +19,10 @@ def check_ogsm_password():
     # Đọc mật khẩu ogsm_password ở đầu file Secrets
     correct_password = st.secrets.get("ogsm_password")
 
+# Dòng kiểm tra tạm thời (xem app có đọc được không):
+if not correct_password:
+    st.warning(f"⚠️ Chưa tìm thấy biến ogsm_password! Các key hiện có: {list(st.secrets.keys())}")
+
     with st.form("ogsm_login_form"):
         user_input = st.text_input("Mật khẩu truy cập OGSM:", type="password")
         if st.form_submit_button("Đăng nhập"):
