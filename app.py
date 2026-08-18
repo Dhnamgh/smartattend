@@ -866,7 +866,7 @@ with tabs[1]:
 with tabs[2]:
     st.subheader("🔒 BÁO CÁO & THỐNG KÊ QUẢN TRỊ")
     
-    admin_pass = st.secrets.get("admin_password", "123456")
+    admin_pass = st.secrets["admin_password"]
     input_pass = st.text_input("Nhập mật khẩu Quản trị viên để truy cập:", type="password", key="db_pass_input")
     
     if input_pass != admin_pass:
