@@ -732,38 +732,6 @@ elif menu == "Đăng ký":
 # --- BÁO CÁO & CẢNH BÁO & HỖ TRỢ & TRUY VẤN AI ---
 elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
     if not enforce_menu_access(menu): st.stop()
-    if menu == "Báo cáo":
-        st.markdown('<div class="table-title">📊 Báo cáo</div>', unsafe_allow_html=True)
-        report_period = st.radio("Kỳ báo cáo", ["Tuần", "Tháng", "Năm"], horizontal=True, label_visibility="collapsed")
-        df_report, label, _, _ = get_period_df(df_f, report_period)
-        if len(df_report) > 0:
-            summary = df_report.groupby("donvi").size().reset_index(name="Sự kiện")
-            summary["Đơn vị"] = summary["donvi"].apply(lambda x: wrap_label(x, 20))
-            st.plotly_chart(px.bar(summary, x="Sự kiện", y="Đơn vị", text="Sự kiện", orientation="h"), use_container_width=True)
-            table_r = summary[["donvi", "Sự kiện"]].rename(columns={"donvi": "Đơn vị"}).reset_index(drop=True)
-            table_r.insert(0, "STT", table_r.index + 1); show_table_with_download(f"{label}", table_r, f"bc_{report_period}.xlsx", compact=True)
-        else: st.info(f"Không có dữ liệu {label}.")
-    elif menu == "Cảnh báo":
-        st.markdown('<div class="table-title">⚠️ Cảnh báo trùng lịch</div>', unsafe_allow_html=True)
-        period = st.radio("Cảnh báo", ["Tuần", "Tháng"], horizontal=True, label_visibility="collapsed")
-        warn_df, label, _, _ = get_period_df(df_f, period)
-        conf = []
-        for i, j in [(i, j) for i in range(len(warn_df)) for j in range(i+1, len(warn_df))]:
-            a, b = warn_df.iloc[i], warn_df.iloc[j]
-            if a["start"] < b["end"] and b["start"] < a["end"]:
-                conf.append({"Thời gian": a["start"].strftime("%d/%m/%Y %H:%M"), "Sự kiện 1": clean_text(a["event"]), "Sự kiện 2": clean_text(b["event"]), "Mức độ": "Trùng địa điểm" if clean_text(a["location"]).lower() == clean_text(b["location"]).lower() else "Trùng giờ"})
-        if not conf: st.success(f"{label} không trùng lịch.")
-        else: show_table_with_download(f"{label}", pd.DataFrame(conf), f"cb_{period}.xlsx", compact=True)
-    elif menu == "Hỗ trợ":
-        st.markdown('<div class="table-title">Hỗ trợ</div>', unsafe_allow_html=True)
-        period = st.radio("Hỗ trợ", ["Tuần", "Tháng"], horizontal=True, label_visibility="collapsed")
-        df_supp, label, _, _ = get_period_df(df_f, period)
-        supp_t = build_support_table(df_supp)
-        if not supp_t.empty: show_table_with_download(f"{label}", collapse_repeated_support_rows(supp_t), f"ht_{period}.xlsx", compact=True)
-        else: st.info("Không yêu cầu hỗ trợ.")
-    # --- BÁO CÁO & CẢNH BÁO & HỖ TRỢ & TRUY VẤN AI ---
-elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
-    if not enforce_menu_access(menu): st.stop()
     
     if menu == "Báo cáo":
         st.markdown('<div class="table-title">📊 Báo cáo</div>', unsafe_allow_html=True)
