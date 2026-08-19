@@ -13,68 +13,29 @@ from firebase_admin import credentials, db
 
 # =============================== 1. CẤU HÌNH GIAO DIỆN ===============================
 st.set_page_config(
-    page_title="Điểm danh UMP",       # Tên hiển thị trên thẻ trình duyệt
+    page_title="APP ĐIỂM DANH",
     page_icon="📍",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Đổi tên hiển thị của cả 3 trang trên Sidebar thành Tiếng Việt
-st.sidebar.markdown("""
-<style>
-    /* 1. Đổi chữ 'app' thành '📍 Điểm danh UMP' */
-    [data-testid="stSidebarNav"] ul li:nth-child(1) span { 
-        font-size: 0 !important; 
-    }
-    [data-testid="stSidebarNav"] ul li:nth-child(1) span::after {
-        content: "📍 Điểm danh UMP" !important;
-        font-size: 14px !important;
-        font-weight: 500;
-    }
-
-    /* 2. Đổi chữ 'event' thành '📅 Sự kiện & Event' */
-    [data-testid="stSidebarNav"] ul li:nth-child(2) span { 
-        font-size: 0 !important; 
-    }
-    [data-testid="stSidebarNav"] ul li:nth-child(2) span::after {
-        content: "📅 Sự kiện & Event" !important;
-        font-size: 14px !important;
-        font-weight: 500;
-    }
-
-    /* 3. Đổi chữ 'ogsm' thành '🎯 Quản trị OGSM' */
-    [data-testid="stSidebarNav"] ul li:nth-child(3) span { 
-        font-size: 0 !important; 
-    }
-    [data-testid="stSidebarNav"] ul li:nth-child(3) span::after {
-        content: "🎯 Quản trị OGSM" !important;
-        font-size: 14px !important;
-        font-weight: 500;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# =============================== 2. CSS TẠO THANH MENU NGANG MÀU XANH FACEBOOK ===============================
+# =============================== 2. CSS GIAO DIỆN & TỐI ƯU MOBILE ===============================
 st.markdown("""
 <style>
-    /* 1. Triệt tiêu vạch trang trí và Header mặc định */
+    /* 1. Triệt tiêu vạch trang trí, Header, Sidebar và Menu mặc định */
     div[data-testid="stDecoration"], 
     header, 
-    [data-testid="stHeader"] { 
-        display: none !important; 
-        height: 0 !important;
-    }
-    
-    /* 2. Ẩn Sidebar, Menu và các Widget mặc định */
+    [data-testid="stHeader"],
     [data-testid="stSidebar"], 
     [data-testid="stSidebarNav"], 
     #MainMenu, 
     .stAppDeployButton, 
     [data-testid="stStatusWidget"] { 
         display: none !important; 
+        height: 0 !important;
     }
-
-    /* 3. ĐẶC TRỊ: XÓA TIỆN BỎ HUY HIỆU "HOSTED WITH STREAMLIT" VÀ LOGO NỔI Ở CHÂN TRANG */
+    
+    /* 2. Xóa bỏ logo nổi và huy hiệu chân trang */
     footer, 
     div[data-testid="stFooter"], 
     [data-testid="stViewerBadge"], 
@@ -88,19 +49,18 @@ st.markdown("""
         pointer-events: none !important;
     }
 
-    /* 4. TẠO KHOẢNG TRỐNG CHÂN TRANG ĐỂ NÚT XÁC NHẬN KHÔNG BỊ CHỜM VÀO MÉP ĐIỆN THOẠI */
+    /* 3. Canh lề trang gọn gàng */
     .block-container {
         padding-top: 0.5rem !important;
-        padding-bottom: 7rem !important; /* Đẩy nội dung đáy lên cao hơn thanh điều hướng di động */
+        padding-bottom: 5rem !important;
     }
 
-    /* 5. ÉP CHỮ CÁC Ô HIỂN THỊ RÕ NÉT */
+    /* 4. Hiển thị chữ rõ nét trong các ô nhập */
     label, p, span, div[data-baseweb="input"], input {
         color: #262730 !important;
         opacity: 1 !important;
         -webkit-text-fill-color: #262730 !important;
     }
-
     input:disabled, 
     div[data-baseweb="input"]:has(input:disabled) {
         background-color: #F0F2F6 !important;
@@ -109,77 +69,64 @@ st.markdown("""
         opacity: 1 !important;
     }
 
-    /* 6. TÔ MÀU XANH FACEBOOK CHO 3 NÚT ĐIỀU HƯỚNG */
-    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button {
-        background-color: #1877F2 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 10px 16px !important;
-        font-weight: 600 !important;
-        font-size: 15px !important;
-        box-shadow: 0px 3px 6px rgba(0,0,0,0.12) !important;
-        transition: all 0.2s ease-in-out !important;
-        width: 100% !important;
-    }
-
-    div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button:hover {
-        background-color: #145dbf !important;
-        color: #FFFFFF !important;
-    }
-
-    /* 7. TỐI ƯU LỀ VÀ NÚT BẤM CHO MÀN HÌNH ĐIỆN THOẠI */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-            padding-top: 0.2rem !important;
-            padding-bottom: 8rem !important; /* Dành riêng space lề đáy đủ rộng cho điện thoại */
-        }
-        div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="column"] button {
-            padding: 8px 6px !important;
-            font-size: 13px !important;
-        }
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# ==================== 3. THANH MENU ĐIỀU HƯỚNG BẰNG NÚT BẤM ====================
-st.markdown("""
-<style>
-    /* CHỈ tác động lên hàng cột đầu tiên (chứa 3 nút menu), không ảnh hưởng các form bên dưới */
+    /* 5. ĐẶC TRỊ: ÉP 3 NÚT ĐIỀU HƯỚNG TRÊN CÙNG LUÔN NẰM TRÊN 1 HÀNG TRÊN MOBILE */
     div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: 6px !important;
+        margin-bottom: 8px !important;
     }
-    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type > div {
+    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"] {
         flex: 1 1 0% !important;
         min-width: 0 !important;
     }
+
+    /* 6. Định dạng nút bấm màu xanh Facebook cho 3 nút trên cùng */
     div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type button {
-        width: 100% !important;
+        background-color: #1877F2 !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 6px !important;
         padding: 6px 2px !important;
+        font-weight: 600 !important;
         font-size: 13px !important;
         white-space: nowrap !important;
+        width: 100% !important;
+        box-shadow: 0px 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type button:hover {
+        background-color: #145dbf !important;
+        color: #FFFFFF !important;
+    }
+
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            padding-top: 0.2rem !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
+# ==================== 3. THANH MENU ĐIỀU HƯỚNG (1 HÀNG DUY NHẤT) ====================
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("📋 Điểm danh", use_container_width=True):
+    if st.button("Điểm danh", use_container_width=True):
         st.switch_page("app.py")
 
 with col2:
-    if st.button("🎪 Sự kiện", use_container_width=True):
+    if st.button("Sự kiện", use_container_width=True):
         st.switch_page("pages/event.py")
 
 with col3:
-    if st.button("📊 OGSM", use_container_width=True):
+    if st.button("OGSM", use_container_width=True):
         st.switch_page("pages/ogsm.py")
+
+# ==================== 4. TIÊU ĐỀ PHÂN HỆ SIZE 14 ====================
+st.markdown('<div style="font-size: 14px; font-weight: 700; color: #111827; margin: 4px 0 10px 0; text-transform: uppercase;">APP ĐIỂM DANH</div>', unsafe_allow_html=True)
 
 # ================= PHẦN CODE XỬ LÝ CHÍNH CỦA APP ĐIỂM DANH BẮT ĐẦU TỪ ĐÂY =================
 
