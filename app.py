@@ -698,7 +698,7 @@ with tabs[1]:
     mc_user_role = st.radio("Chọn đối tượng nộp đơn:", ["Giảng viên", "Viên chức", "Sinh viên"], horizontal=True, key="mc_role_radio")
     
     mc_expected_len = 9 if mc_user_role == "Sinh viên" else 8
-    mc_placeholder = "Ví dụ: 060712345" if mc_user_role == "Sinh viên" else "Ví dụ: 06071234"
+    mc_placeholder = "Ví dụ: 411265001" if mc_user_role == "Sinh viên" else "Ví dụ: 06071234"
     
     mc_class = ""
     if mc_user_role == "Sinh viên":
