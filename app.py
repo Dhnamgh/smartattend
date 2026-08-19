@@ -19,10 +19,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# =============================== 2. CSS GIAO DIỆN & TỐI ƯU MOBILE ===============================
+# =============================== 2. CSS TRIỆT TIÊU HEADER & TỐI ƯU MENU 1 HÀNG ===============================
 st.markdown("""
 <style>
-    /* 1. Triệt tiêu vạch trang trí, Header, Sidebar và Menu mặc định */
+    /* 1. Ẩn toàn bộ Header, Sidebar, Footer, Menu mặc định */
     div[data-testid="stDecoration"], 
     header, 
     [data-testid="stHeader"],
@@ -30,32 +30,30 @@ st.markdown("""
     [data-testid="stSidebarNav"], 
     #MainMenu, 
     .stAppDeployButton, 
-    [data-testid="stStatusWidget"] { 
-        display: none !important; 
-        height: 0 !important;
-    }
-    
-    /* 2. Xóa bỏ logo nổi và huy hiệu chân trang */
+    [data-testid="stStatusWidget"],
     footer, 
     div[data-testid="stFooter"], 
     [data-testid="stViewerBadge"], 
-    .stAppViewerBadge, 
-    div[class*="viewerBadge"],
-    div[class*="stActionButton"],
-    div[data-testid="stToolbar"] { 
+    .stAppViewerBadge { 
         display: none !important; 
+        height: 0 !important;
         visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
     }
 
-    /* 3. Canh lề trang gọn gàng */
+    /* 2. Căn chỉnh lề gọn gàng trên mobile */
     .block-container {
         padding-top: 0.5rem !important;
         padding-bottom: 5rem !important;
     }
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            padding-top: 0.2rem !important;
+        }
+    }
 
-    /* 4. Hiển thị chữ rõ nét trong các ô nhập */
+    /* 3. HIỂN THỊ CHỮ RÕ NÉT */
     label, p, span, div[data-baseweb="input"], input {
         color: #262730 !important;
         opacity: 1 !important;
@@ -69,64 +67,58 @@ st.markdown("""
         opacity: 1 !important;
     }
 
-    /* 5. ĐẶC TRỊ: ÉP 3 NÚT ĐIỀU HƯỚNG TRÊN CÙNG LUÔN NẰM TRÊN 1 HÀNG TRÊN MOBILE */
-    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 6px !important;
-        margin-bottom: 8px !important;
+    /* 4. THANH ĐIỀU HƯỚNG 3 NÚT: CỐ ĐỊNH 1 HÀNG DUY NHẤT (HTML NATIVE) */
+    .nav-bar-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+        width: 100%;
+        margin-bottom: 12px;
     }
-    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type > div[data-testid="column"] {
-        flex: 1 1 0% !important;
-        min-width: 0 !important;
-    }
-
-    /* 6. Định dạng nút bấm màu xanh Facebook cho 3 nút trên cùng */
-    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type button {
-        background-color: #1877F2 !important;
+    .nav-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 2px;
+        background-color: #1877F2;
         color: #FFFFFF !important;
-        border: none !important;
-        border-radius: 6px !important;
-        padding: 6px 2px !important;
-        font-weight: 600 !important;
-        font-size: 13px !important;
-        white-space: nowrap !important;
-        width: 100% !important;
-        box-shadow: 0px 2px 4px rgba(0,0,0,0.1) !important;
+        border-radius: 6px;
+        text-decoration: none !important;
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: background-color 0.2s ease;
     }
-    div.block-container > div[data-testid="stVerticalBlock"] > div[data-testid="stHorizontalBlock"]:first-of-type button:hover {
-        background-color: #145dbf !important;
-        color: #FFFFFF !important;
+    .nav-btn:hover {
+        background-color: #145dbf;
     }
-
-    @media (max-width: 768px) {
-        .block-container {
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-            padding-top: 0.2rem !important;
-        }
+    .nav-btn.active {
+        background-color: #0d47a1;
+        outline: 2px solid #90caf9;
+    }
+    
+    /* 5. TIÊU ĐỀ APP ĐIỂM DANH SIZE 16 */
+    .app-title-custom {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        color: #1f2937 !important;
+        margin: 4px 0 10px 0 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px;
     }
 </style>
+
+<!-- Thanh điều hướng 3 nút 1 hàng -->
+<div class="nav-bar-grid">
+    <a href="./" target="_self" class="nav-btn active">Điểm danh</a>
+    <a href="./event" target="_self" class="nav-btn">Sự kiện</a>
+    <a href="./ogsm" target="_self" class="nav-btn">OGSM</a>
+</div>
+
+<!-- Tiêu đề Cỡ chữ 16 -->
+<div class="app-title-custom">APP ĐIỂM DANH</div>
 """, unsafe_allow_html=True)
-
-# ==================== 3. THANH MENU ĐIỀU HƯỚNG (1 HÀNG DUY NHẤT) ====================
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("Điểm danh", use_container_width=True):
-        st.switch_page("app.py")
-
-with col2:
-    if st.button("Sự kiện", use_container_width=True):
-        st.switch_page("pages/event.py")
-
-with col3:
-    if st.button("OGSM", use_container_width=True):
-        st.switch_page("pages/ogsm.py")
-
-# ==================== 4. TIÊU ĐỀ PHÂN HỆ SIZE 14 ====================
-st.markdown('<div style="font-size: 14px; font-weight: 700; color: #111827; margin: 4px 0 10px 0; text-transform: uppercase;">APP ĐIỂM DANH</div>', unsafe_allow_html=True)
 
 # ================= PHẦN CODE XỬ LÝ CHÍNH CỦA APP ĐIỂM DANH BẮT ĐẦU TỪ ĐÂY =================
 
@@ -726,11 +718,12 @@ with tabs[1]:
                 col_name = cbvc_df.columns[1] if len(cbvc_df.columns) > 1 else cbvc_df.columns[0]
                 col_unit = cbvc_df.columns[2] if len(cbvc_df.columns) > 2 else ""
                 
-                cbvc_df["CLEAN_ID"] = cbvc_df[col_msvc].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(8)
+                # Làm sạch mã số chuẩn xác
+                cbvc_df["CLEAN_ID"] = cbvc_df[col_msvc].astype(str).str.split('.').str[0].str.strip().str.replace('\xa0', '').str.zfill(8)
                 match = cbvc_df[cbvc_df["CLEAN_ID"] == mc_id]
                 if not match.empty:
-                    mc_fetched_name = match.iloc[0][col_name]
-                    mc_fetched_unit = match.iloc[0][col_unit] if col_unit else ""
+                    mc_fetched_name = str(match.iloc[0][col_name]).strip()
+                    mc_fetched_unit = str(match.iloc[0][col_unit]).strip() if col_unit else ""
         else:
             sv_df = read_excel_from_onedrive(f"OGSM/ATTENDANCE/DATA/SV/{mc_class}.xlsx")
             if not sv_df.empty:
@@ -738,17 +731,23 @@ with tabs[1]:
                 col_name = sv_df.columns[1] if len(sv_df.columns) > 1 else sv_df.columns[0]
                 col_unit = sv_df.columns[2] if len(sv_df.columns) > 2 else ""
                 
-                sv_df["CLEAN_ID"] = sv_df[col_mssv].astype(str).str.strip().str.replace('\xa0', '').str.replace('.0', '', regex=False).str.zfill(9)
+                # Làm sạch mã số sinh viên
+                sv_df["CLEAN_ID"] = sv_df[col_mssv].astype(str).str.split('.').str[0].str.strip().str.replace('\xa0', '').str.zfill(9)
                 match = sv_df[sv_df["CLEAN_ID"] == mc_id]
                 if not match.empty:
-                    mc_fetched_name = match.iloc[0][col_name]
-                    mc_fetched_unit = f"{match.iloc[0][col_unit]} - Lớp {mc_class}" if col_unit else f"Lớp {mc_class}"
+                    mc_fetched_name = str(match.iloc[0][col_name]).strip()
+                    unit_raw = str(match.iloc[0][col_unit]).strip() if col_unit else ""
+                    mc_fetched_unit = f"{unit_raw} - Lớp {mc_class}" if unit_raw else f"Lớp {mc_class}"
+
+    # Hiển thị Họ tên & Đơn vị (Xóa key cố định để Streamlit tự động bind value động)
+    display_name = mc_fetched_name if mc_fetched_name else ("Mã số chưa chính xác" if len(mc_id) == mc_expected_len else "")
+    display_unit = mc_fetched_unit if mc_fetched_unit else ""
 
     col_mc1, col_mc2 = st.columns(2)
     with col_mc1:
-        st.text_input("Họ và tên người nộp:", value=str(mc_fetched_name if mc_fetched_name else ("Mã số chưa chính xác" if len(mc_id)==mc_expected_len else "")), disabled=True, key="mc_name_disp")
+        st.text_input("Họ và tên người nộp:", value=display_name, disabled=True)
     with col_mc2:
-        st.text_input("Đơn vị / Lớp:", value=str(mc_fetched_unit if mc_fetched_unit else ""), disabled=True, key="mc_unit_disp")
+        st.text_input("Đơn vị / Lớp:", value=display_unit, disabled=True)
 
     has_attended_today = False
     attendance_today_time = ""
@@ -762,7 +761,7 @@ with tabs[1]:
         for node in check_nodes:
             hist_df = read_from_firebase(node)
             if not hist_df.empty and "Mã Số" in hist_df.columns and "Thời Gian" in hist_df.columns:
-                hist_df["CLEAN_ID"] = hist_df["Mã Số"].astype(str).str.strip().str.zfill(mc_expected_len)
+                hist_df["CLEAN_ID"] = hist_df["Mã Số"].astype(str).str.split('.').str[0].str.strip().str.zfill(mc_expected_len)
                 hist_df["DATE_STR"] = hist_df["Thời Gian"].astype(str).str[:10]
                 
                 records_today = hist_df[(hist_df["CLEAN_ID"] == mc_id) & (hist_df["DATE_STR"] == today_str)]
