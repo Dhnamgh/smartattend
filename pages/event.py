@@ -139,10 +139,8 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 }
 </style>
 
-<div class="ump-fixed-header">
-  <div class="ump-vn">ĐẠI HỌC Y DƯỢC TP. HỒ CHÍ MINH</div>
-  <div class="ump-en">UNIVERSITY OF MEDICINE AND PHARMACY AT HCMC</div>
-  <div class="ump-app">Hệ thống quản trị sự kiện UMP</div>
+<div style="font-size: 16px; font-weight: 700; color: #1f2937; margin: 6px 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+    APP QUẢN LÝ SỰ KIỆN UMP
 </div>
 """, unsafe_allow_html=True)
 
