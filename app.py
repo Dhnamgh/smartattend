@@ -315,7 +315,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 # ================= 3. GIAO DIỆN HỆ THỐNG =================
-st.title("HỆ THỐNG ĐIỂM DANH UMP")
 tabs = st.tabs(["Điểm danh", "Báo nghỉ phép", "Dashboard"])
 
 # Session State lưu trữ trạng thái Ra ca sớm
