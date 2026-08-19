@@ -550,11 +550,16 @@ def enforce_menu_access(menu_name):
 # 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
-# --- DASHBOARD (GIAO DIỆN GỌN GÀNG, KHÔNG BỊ CHIẾM DIỆN TÍCH) ---
+# --- DASHBOARD (GIAO DIỆN GỌN) ---
 if menu == "Dashboard":
-    if st.button("🔄 Làm mới dữ liệu lịch"):
-        st.cache_data.clear()
-        st.rerun()
+    # Tự động viết hoa chữ cái đầu cho tiêu đề Tháng trên lịch FullCalendar/HTML
+    st.markdown("""
+    <style>
+        .fc-toolbar-title, .fc-header-toolbar h2, div[class*="toolbar-title"] {
+            text-transform: capitalize !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
     try:
         fresh_df = load_data_no_cache()
@@ -562,8 +567,6 @@ if menu == "Dashboard":
         df_dash = keep_only_thong_nhat_for_calendar(fresh_df)
     except Exception:
         df_dash = keep_only_thong_nhat_for_calendar(df_f)
-
-    st.markdown(f'<div class="table-title">Dashboard Lịch sự kiện</div>', unsafe_allow_html=True)
 
     events, event_dates_for_stats = [], []
     for idx, (_, r) in enumerate(df_dash.sort_values("start").iterrows()):
