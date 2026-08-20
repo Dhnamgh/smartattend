@@ -13,13 +13,42 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from io import BytesIO
 
-st.set_page_config(layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="APP QUẢN LÝ SỰ KIỆN UMP", page_icon="📅", layout="wide", initial_sidebar_state="collapsed")
 
 # ==============================================================================
 # 1. GIAO DIỆN & CSS (TỐI ƯU TOÀN DIỆN CHO MOBILE RESPONSIVE)
 # ==============================================================================
 st.markdown("""
 <style>
+/* CSS 3 Nút Menu điều hướng trên cùng (1 hàng ngang cố định trên mobile) */
+.top-nav-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+.top-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 2px;
+    background-color: #1877F2;
+    color: #FFFFFF !important;
+    border-radius: 6px;
+    text-decoration: none !important;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: background-color 0.2s ease;
+}
+.top-nav-btn:hover { background-color: #145dbf; }
+.top-nav-btn.active {
+    background-color: #0d47a1;
+    outline: 2px solid #90caf9;
+}
+
 /* CSS Sidebar */
 section[data-testid="stSidebar"] div[role="radiogroup"] { gap: 8px !important; }
 section[data-testid="stSidebar"] div[role="radiogroup"] label {
@@ -41,7 +70,7 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label p {
 html, body { font-family: Arial, sans-serif; font-size: 18px; color: #111827; }
 section[data-testid="stSidebar"] { width: 255px !important; min-width: 255px !important; max-width: 255px !important; }
 section[data-testid="stSidebar"] * { font-size: 13px !important; }
-.block-container { padding-top: 1rem; padding-left: 1rem; padding-right: 1rem; max-width: 100% !important; }
+.block-container { padding-top: 0.5rem; padding-left: 1rem; padding-right: 1rem; max-width: 100% !important; }
 
 div[data-baseweb="notification"] div, .stAlert p { font-size: 13px !important; line-height: 1.4 !important; }
 h1, h2, h3, h4, h5, h6, .stSubheader, .plotly .gtitle,
@@ -53,53 +82,49 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
     font-size: 14px !important; font-weight: 600 !important;
 }
 
-.table-title { font-size: 20px; font-weight: 900; color: #020617; margin-top: 14px; margin-bottom: 10px; letter-spacing: -0.2px; }
+.table-title { font-size: 16px; font-weight: 800; color: #020617; margin-top: 10px; margin-bottom: 8px; }
 .ump-table-wrap { width: 100%; overflow-x: auto; margin-bottom: 10px; }
 .ump-table-wrap.compact { width: fit-content; max-width: 100%; }
 
-.ump-table { border-collapse: collapse; font-size: 15px; color: #020617 !important; background: white; width: 100%; }
-.ump-table th { background: #f1f5f9; color: #020617 !important; font-weight: 900; border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; white-space: nowrap; }
-.ump-table td { color: #020617 !important; font-weight: 650; border: 1px solid #cbd5e1; padding: 7px 10px; vertical-align: top; line-height: 1.35; }
+.ump-table { border-collapse: collapse; font-size: 14px; color: #020617 !important; background: white; width: 100%; }
+.ump-table th { background: #f1f5f9; color: #020617 !important; font-weight: 800; border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; white-space: nowrap; }
+.ump-table td { color: #020617 !important; font-weight: 600; border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: top; line-height: 1.35; }
 .ump-table.compact th, .ump-table.compact td { white-space: nowrap; }
 .ump-table tr:nth-child(even) td { background: #f8fafc; }
 
-/* CSS Header cố định */
-.ump-fixed-header {
-    background: linear-gradient(90deg, #06145f, #0b2f8a); color: #ffffff; padding: 18px 24px; border-radius: 10px; margin: 0 0 18px 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18); display: flex; flex-direction: column; justify-content: center;
-}
-.ump-fixed-header .ump-vn { font-size: 22px; font-weight: 800; text-transform: uppercase; }
-.ump-fixed-header .ump-en { font-size: 13px; font-weight: 600; text-transform: uppercase; margin-top: 4px; opacity: .95; }
-.ump-fixed-header .ump-app { font-size: 24px; font-weight: 800; margin-top: 14px; }
-
 /* CSS Panel chi tiết sự kiện khi chọn */
 .event-details-panel {
-    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-top: 16px;
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-top: 14px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
-.details-title { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
-.details-item { font-size: 15px; color: #1e293b; margin-bottom: 6px; line-height: 1.4; }
+.details-title { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 10px; }
+.details-item { font-size: 14px; color: #1e293b; margin-bottom: 5px; line-height: 1.4; }
 .details-label { font-weight: 700; color: #020617; }
-.details-support-title { font-size: 16px; font-weight: 700; color: #020617; margin-top: 14px; margin-bottom: 8px; }
+.details-support-title { font-size: 14px; font-weight: 700; color: #020617; margin-top: 12px; margin-bottom: 6px; }
 
 .stButton>button { width: auto; font-size: 13px !important; }
 
-/* ==============================================================================
-   CSS TỰ CO DÃN 100% VỪA VẶN MÀN HÌNH ĐIỆN THOẠI
-   ============================================================================== */
+/* CSS FULLCALENDAR: VIẾT HOA CHỮ THÁNG & CỠ CHỮ 13PX */
+.fc .fc-toolbar-title, 
+.fc-header-toolbar h2, 
+div[class*="fc-toolbar-title"] {
+    text-transform: capitalize !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+}
+.fc .fc-col-header-cell-cushion {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    text-transform: capitalize !important;
+}
+
+/* TỐI ƯU MOBILE */
 @media screen and (max-width: 768px) {
     html, body { font-size: 13px !important; }
     .block-container { padding: 4px !important; }
-
     section[data-testid="stSidebar"] { width: 85% !important; min-width: 250px !important; }
     section[data-testid="stSidebar"] div[role="radiogroup"] label { width: 100% !important; min-width: 100% !important; }
-
-    .ump-fixed-header { padding: 10px 12px; margin-bottom: 10px; border-radius: 6px; }
-    .ump-fixed-header .ump-vn { font-size: 12px !important; }
-    .ump-fixed-header .ump-en { font-size: 8px !important; margin-top: 2px; }
-    .ump-fixed-header .ump-app { font-size: 14px !important; margin-top: 4px; }
-
-    .table-title { font-size: 14px !important; font-weight: 800; margin-top: 6px; margin-bottom: 4px; }
 
     iframe { max-width: 100% !important; }
     .fc { font-size: 11px !important; }
@@ -110,26 +135,13 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
         gap: 4px !important;
         margin: 4px 0 !important;
     }
-    .fc .fc-toolbar-chunk {
-        display: flex !important;
-        justify-content: center !important;
-        width: 100% !important;
-    }
-    .fc .fc-toolbar-title {
-        font-size: 14px !important;
-        font-weight: 800 !important;
-        text-align: center !important;
-        margin: 2px 0 !important;
-    }
-    .fc .fc-button {
-        padding: 3px 8px !important;
-        font-size: 11px !important;
-    }
-    
+    .fc .fc-toolbar-chunk { display: flex !important; justify-content: center !important; width: 100%; }
+    .fc .fc-toolbar-title { font-size: 13px !important; font-weight: 700 !important; text-align: center !important; }
+    .fc .fc-button { padding: 3px 8px !important; font-size: 11px !important; }
     .fc-col-header-cell-cushion { font-size: 10px !important; padding: 2px !important; }
     .fc-daygrid-day-number { font-size: 10px !important; padding: 1px 3px !important; }
     .fc-daygrid-event { margin: 1px 0 !important; }
-    .fc-event-title { font-size: 8.5px !important; line-height: 1.05 !important; }
+    .fc-event-title { font-size: 9px !important; line-height: 1.1 !important; }
 
     .event-details-panel { padding: 10px !important; margin-top: 8px !important; }
     .details-title { font-size: 14px !important; }
@@ -139,7 +151,15 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 }
 </style>
 
-<div style="font-size: 16px; font-weight: 700; color: #1f2937; margin: 6px 0 12px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+<!-- Thanh điều hướng 3 app trên 1 hàng -->
+<div class="top-nav-grid">
+    <a href="./" target="_self" class="top-nav-btn">Điểm danh</a>
+    <a href="./event" target="_self" class="top-nav-btn active">Sự kiện</a>
+    <a href="./ogsm" target="_self" class="top-nav-btn">OGSM</a>
+</div>
+
+<!-- Tiêu đề Cỡ chữ 16 -->
+<div style="font-size: 16px; font-weight: 700; color: #1f2937; margin: 4px 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">
     APP QUẢN LÝ SỰ KIỆN UMP
 </div>
 """, unsafe_allow_html=True)
@@ -266,7 +286,7 @@ def send_notification_email(event_name, donvi, start_dt, location):
         server.send_message(msg)
         server.quit()
         return True
-    except Exception as e: return False
+    except Exception: return False
 
 # ==============================================================================
 # 3. KẾT NỐI ONEDRIVE CỐ ĐỊNH /OGSM/EVENT/Danh_sach_su_kien.xlsx
@@ -497,7 +517,7 @@ def build_detailed_support_table_html(raw_data):
     """
 
 # ==============================================================================
-# 4. KHỞI TẠO STATE & KHAI BÁO MENU (TỰ ĐỘNG GẮN BADGE SỐ ĐỎ VÀO NÚT PHÊ DUYỆT)
+# 4. KHỞI TẠO STATE & KHAI BÁO MENU
 # ==============================================================================
 df = load_data()
 today = datetime.today()
@@ -509,7 +529,7 @@ if "reg_start_date" not in st.session_state: st.session_state.reg_start_date = t
 if "reg_end_date" not in st.session_state: st.session_state.reg_end_date = today.date()
 if "reg_prev_start_date" not in st.session_state: st.session_state.reg_prev_start_date = st.session_state.reg_start_date
 
-# Tính toán số lượng sự kiện chờ phê duyệt để gắn nhãn vào Menu
+# Tính toán số lượng sự kiện chờ phê duyệt
 num_pending = 0
 if not df.empty:
     num_pending = len(df[df.apply(approval_text_from_row, axis=1) == ""])
@@ -517,7 +537,7 @@ if not df.empty:
 phe_duyet_label = f"Phê duyệt 🔴 {num_pending}" if num_pending > 0 else "Phê duyệt"
 
 menu_options = ["Dashboard", "Đăng ký", "Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI", phe_duyet_label, "Liên hệ"]
-selected_menu = st.sidebar.radio("", menu_options)
+selected_menu = st.sidebar.radio("", menu_options, label_visibility="collapsed")
 
 # Chuẩn hóa giá trị menu
 menu = "Phê duyệt" if selected_menu.startswith("Phê duyệt") else selected_menu
@@ -548,17 +568,8 @@ def enforce_menu_access(menu_name):
 # 5. CÁC TRANG CHỨC NĂNG
 # ==============================================================================
 
-# --- DASHBOARD (GIAO DIỆN GỌN) ---
+# --- DASHBOARD ---
 if menu == "Dashboard":
-    # Tự động viết hoa chữ cái đầu cho tiêu đề Tháng trên lịch FullCalendar/HTML
-    st.markdown("""
-    <style>
-        .fc-toolbar-title, .fc-header-toolbar h2, div[class*="toolbar-title"] {
-            text-transform: capitalize !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
     try:
         fresh_df = load_data_no_cache()
         fresh_df = fresh_df if "Toàn trường" in selected or fresh_df.empty else fresh_df[fresh_df["donvi"].isin(selected)]
@@ -566,62 +577,50 @@ if menu == "Dashboard":
     except Exception:
         df_dash = keep_only_thong_nhat_for_calendar(df_f)
 
-    from datetime import timedelta
-
-events, event_dates_for_stats = [], []
-
-for idx, (_, r) in enumerate(df_dash.sort_values("start").iterrows()):
-    s, e = r["start"], r["end"]
+    events, event_dates_for_stats = [], []
     
-    # 1. Kiểm tra xem sự kiện có giờ cụ thể hay là cả ngày
-    has_time = not (s.hour == 0 and s.minute == 0 and e.hour == 0 and e.minute == 0)
-    time_label = s.strftime("%H:%M") if has_time else "Cả ngày"
-    location = clean_text(r.get("location", ""))
-    title = f"{time_label} - {r['event']}" + (f"\n 📍 {location}" if location else "")
-    color = event_color(idx, f"{r.get('event','')}-{s}-{location}")
-    
-    # 2. XỬ LÝ SỰ KIỆN QUA NHIỀU NGÀY: Tách thành từng ngày để hiển thị đúng khung giờ
-    cur_date = s.date()
-    end_date = e.date()
-    
-    while cur_date <= end_date:
-        if has_time:
-            # Gán đúng khung giờ (s.time() -> e.time()) cho từng ngày
-            cur_s = datetime.combine(cur_date, s.time())
-            cur_e = datetime.combine(cur_date, e.time())
-            start_str = cur_s.strftime("%Y-%m-%d %H:%M")
-            end_str = cur_e.strftime("%Y-%m-%d %H:%M")
-        else:
-            start_str = cur_date.strftime("%Y-%m-%d")
-            end_str = cur_date.strftime("%Y-%m-%d")
-            
-        events.append({
-            "title": title,
-            "start": start_str,
-            "end": end_str,
-            "backgroundColor": color,
-            "borderColor": color,
-            "extendedProps": {
-                "raw": r.to_json()
-            }
-        })
-        event_dates_for_stats.append(cur_date)
+    # Vòng lặp tách sự kiện qua nhiều ngày
+    for idx, (_, r) in enumerate(df_dash.sort_values("start").iterrows()):
+        s, e = r["start"], r["end"]
+        if pd.isna(s): continue
+        if pd.isna(e): e = s
         
-        # Tăng lên ngày kế tiếp
-        cur_date += timedelta(days=1)
-
-        events.append({
-            "title": title, "start": start_str, "end": end_str,
-            "backgroundColor": color, "borderColor": color, "textColor": "#111827",
-            "extendedProps": {
-                "panel_event_title": clean_text(r.get("event", "")),
-                "panel_donvi": clean_text(r.get("donvi", "")),
-                "panel_location": location,
-                "panel_time_label": start_str,
-                "panel_support_text": clean_text(r.get("support", "")),
-                "raw_row_data_json_string": event_raw_data_json_string
-            }
-        })
+        has_time = not (s.hour == 0 and s.minute == 0 and e.hour == 0 and e.minute == 0)
+        time_label = s.strftime("%H:%M") if has_time else "Cả ngày"
+        location = clean_text(r.get("location", ""))
+        title = f"{time_label} - {r['event']}" + (f"\n📍 {location}" if location else "")
+        color = event_color(idx, f"{r.get('event','')}-{s}-{location}")
+        event_raw_data_json_string = r.to_json()
+        
+        cur_date = s.date()
+        end_date = e.date()
+        
+        while cur_date <= end_date:
+            if has_time:
+                cur_s = datetime.combine(cur_date, s.time())
+                cur_e = datetime.combine(cur_date, e.time())
+                start_str = cur_s.strftime("%Y-%m-%d %H:%M")
+                end_str = cur_e.strftime("%Y-%m-%d %H:%M")
+                panel_time_label = f"{start_str} - {cur_e.strftime('%H:%M')}"
+            else:
+                start_str = cur_date.strftime("%Y-%m-%d")
+                end_str = cur_date.strftime("%Y-%m-%d")
+                panel_time_label = start_str
+                
+            events.append({
+                "title": title, "start": start_str, "end": end_str,
+                "backgroundColor": color, "borderColor": color, "textColor": "#111827",
+                "extendedProps": {
+                    "panel_event_title": clean_text(r.get("event", "")),
+                    "panel_donvi": clean_text(r.get("donvi", "")),
+                    "panel_location": location,
+                    "panel_time_label": panel_time_label,
+                    "panel_support_text": clean_text(r.get("support", "")),
+                    "raw_row_data_json_string": event_raw_data_json_string
+                }
+            })
+            event_dates_for_stats.append(datetime.combine(cur_date, time(0, 0)))
+            cur_date += timedelta(days=1)
 
     calendar_output = calendar(
         events=events,
@@ -688,7 +687,7 @@ for idx, (_, r) in enumerate(df_dash.sort_values("start").iterrows()):
     c2.metric("Tháng", sum(1 for d in event_dates_for_stats if d.month == today.month and d.year == today.year))
     c3.metric("Năm", sum(1 for d in event_dates_for_stats if d.year == today.year))
 
-# --- ĐĂNG KÝ (FORM ĐẦY ĐỦ + THÔNG BÁO CHO MOBILE) ---
+# --- ĐĂNG KÝ ---
 elif menu == "Đăng ký":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div class="table-title">📝 Đăng ký sự kiện</div>', unsafe_allow_html=True)
@@ -703,7 +702,9 @@ elif menu == "Đăng ký":
         else: default_start, default_end = time(7, 0), time(11, 0)
         start_time = st.time_input("Giờ bắt đầu", value=default_start)
     with dc2:
-        if st.session_state.reg_start_date != st.session_state.reg_prev_start_date: st.session_state.reg_end_date = st.session_state.reg_start_date; st.session_state.reg_prev_start_date = st.session_state.reg_start_date
+        if st.session_state.reg_start_date != st.session_state.reg_prev_start_date:
+            st.session_state.reg_end_date = st.session_state.reg_start_date
+            st.session_state.reg_prev_start_date = st.session_state.reg_start_date
         end_date = st.date_input("Ngày kết thúc", key="reg_end_date")
         end_time = st.time_input("Giờ kết thúc", value=default_end)
     support_flag = st.selectbox("Có yêu cầu hỗ trợ?", ["KHÔNG", "CÓ"], key="reg_support_flag")
@@ -774,7 +775,8 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
             summary["Đơn vị"] = summary["donvi"].apply(lambda x: wrap_label(x, 20))
             st.plotly_chart(px.bar(summary, x="Sự kiện", y="Đơn vị", text="Sự kiện", orientation="h"), use_container_width=True)
             table_r = summary[["donvi", "Sự kiện"]].rename(columns={"donvi": "Đơn vị"}).reset_index(drop=True)
-            table_r.insert(0, "STT", table_r.index + 1); show_table_with_download(f"{label}", table_r, f"bc_{report_period}.xlsx", compact=True)
+            table_r.insert(0, "STT", table_r.index + 1)
+            show_table_with_download(f"{label}", table_r, f"bc_{report_period}.xlsx", compact=True)
         else: st.info(f"Không có dữ liệu {label}.")
         
     elif menu == "Cảnh báo":
@@ -802,7 +804,6 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
         q = st.text_input("Gõ câu hỏi (tuần/tháng/hỗ trợ):")
         if q:
             low = q.lower().strip()
-            # Lấy số tháng nếu người dùng nhập (ví dụ: tháng 7, thang 7, t7)
             digits = "".join([c for c in low if c.isdigit()])
             
             if "tháng" in low and digits and 1 <= int(digits) <= 12:
@@ -816,7 +817,7 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
             else:
                 st.warning("Thử lại với: tháng 7, tuần, tháng, hỗ trợ")
 
-# --- PHÊ DUYỆT (TỐI ƯU CẢNH BÁO CHO MOBILE) ---
+# --- PHÊ DUYỆT ---
 elif menu == "Phê duyệt":
     if not enforce_menu_access(menu): st.stop()
     st.markdown('<div class="table-title">📋 Phê duyệt sự kiện</div>', unsafe_allow_html=True)
@@ -868,4 +869,4 @@ elif menu == "Liên hệ":
 (+84-28) 3855 8411 | hanhchinh@ump.edu.vn
 """)
 st.markdown("---")
-st.markdown("Copyright © 2026 Bản quyền thuộc về Phòng Hành chính Tổng hợp, Đại học Y Dược Thành phố Hồ Chí Minh")
+st.markdown("Copyright © 2026 Bản quyền thuộc về TS. Đào Hồng Nam - Phòng Hành chính Tổng hợp, Đại học Y Dược Thành phố Hồ Chí Minh")
