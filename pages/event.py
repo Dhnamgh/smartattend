@@ -566,19 +566,49 @@ if menu == "Dashboard":
     except Exception:
         df_dash = keep_only_thong_nhat_for_calendar(df_f)
 
-    events, event_dates_for_stats = [], []
-    for idx, (_, r) in enumerate(df_dash.sort_values("start").iterrows()):
-        s, e = r["start"], r["end"]
-        has_time = not (s.hour == 0 and s.minute == 0)
-        start_str = s.strftime("%Y-%m-%d %H:%M") if has_time else s.strftime("%Y-%m-%d")
-        end_str = e.strftime("%Y-%m-%d %H:%M") if has_time else e.strftime("%Y-%m-%d")
-        time_label = s.strftime("%H:%M") if has_time else "Cả ngày"
-        location = clean_text(r.get("location", ""))
-        title = f"{time_label} - {r['event']}" + (f"\n📍 {location}" if location else "")
-        color = event_color(idx, f"{r.get('event','')}-{s}-{location}")
-        event_dates_for_stats.append(s)
+    from datetime import timedelta
+
+events, event_dates_for_stats = [], []
+
+for idx, (_, r) in enumerate(df_dash.sort_values("start").iterrows()):
+    s, e = r["start"], r["end"]
+    
+    # 1. Kiểm tra xem sự kiện có giờ cụ thể hay là cả ngày
+    has_time = not (s.hour == 0 and s.minute == 0 and e.hour == 0 and e.minute == 0)
+    time_label = s.strftime("%H:%M") if has_time else "Cả ngày"
+    location = clean_text(r.get("location", ""))
+    title = f"{time_label} - {r['event']}" + (f"\n 📍 {location}" if location else "")
+    color = event_color(idx, f"{r.get('event','')}-{s}-{location}")
+    
+    # 2. XỬ LÝ SỰ KIỆN QUA NHIỀU NGÀY: Tách thành từng ngày để hiển thị đúng khung giờ
+    cur_date = s.date()
+    end_date = e.date()
+    
+    while cur_date <= end_date:
+        if has_time:
+            # Gán đúng khung giờ (s.time() -> e.time()) cho từng ngày
+            cur_s = datetime.combine(cur_date, s.time())
+            cur_e = datetime.combine(cur_date, e.time())
+            start_str = cur_s.strftime("%Y-%m-%d %H:%M")
+            end_str = cur_e.strftime("%Y-%m-%d %H:%M")
+        else:
+            start_str = cur_date.strftime("%Y-%m-%d")
+            end_str = cur_date.strftime("%Y-%m-%d")
+            
+        events.append({
+            "title": title,
+            "start": start_str,
+            "end": end_str,
+            "backgroundColor": color,
+            "borderColor": color,
+            "extendedProps": {
+                "raw": r.to_json()
+            }
+        })
+        event_dates_for_stats.append(cur_date)
         
-        event_raw_data_json_string = r.to_json()
+        # Tăng lên ngày kế tiếp
+        cur_date += timedelta(days=1)
 
         events.append({
             "title": title, "start": start_str, "end": end_str,
