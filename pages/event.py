@@ -104,21 +104,6 @@ div[role="radiogroup"] label, div[data-baseweb="radio"] label, .stRadio label, .
 
 .stButton>button { width: auto; font-size: 13px !important; }
 
-/* CSS FULLCALENDAR: VIẾT HOA CHỮ THÁNG & CỠ CHỮ 13PX */
-.fc .fc-toolbar-title, 
-.fc-header-toolbar h2, 
-div[class*="fc-toolbar-title"] {
-    text-transform: capitalize !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    color: #374151 !important;
-}
-.fc .fc-col-header-cell-cushion {
-    font-size: 13px !important;
-    font-weight: 600 !important;
-    text-transform: capitalize !important;
-}
-
 /* TỐI ƯU MOBILE */
 @media screen and (max-width: 768px) {
     html, body { font-size: 13px !important; }
