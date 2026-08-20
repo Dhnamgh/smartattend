@@ -70,7 +70,7 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label p {
 html, body { font-family: Arial, sans-serif; font-size: 18px; color: #111827; }
 section[data-testid="stSidebar"] { width: 255px !important; min-width: 255px !important; max-width: 255px !important; }
 section[data-testid="stSidebar"] * { font-size: 13px !important; }
-.block-container { padding-top: 0.5rem; padding-left: 1rem; padding-right: 1rem; max-width: 100% !important; }
+.block-container { padding-top: 3.5rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 100% !important; }
 
 div[data-baseweb="notification"] div, .stAlert p { font-size: 13px !important; line-height: 1.4 !important; }
 h1, h2, h3, h4, h5, h6, .stSubheader, .plotly .gtitle,
@@ -159,7 +159,7 @@ div[class*="fc-toolbar-title"] {
 </div>
 
 <!-- Tiêu đề Cỡ chữ 16 -->
-<div style="font-size: 16px; font-weight: 700; color: #1f2937; margin: 4px 0 10px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+<div style="font-size: 16px; font-weight: 700; color: #1f2937; margin: 8px 0 22px 0; text-transform: uppercase; letter-spacing: 0.5px; display: block; clear: both;">
     APP QUẢN LÝ SỰ KIỆN UMP
 </div>
 """, unsafe_allow_html=True)
