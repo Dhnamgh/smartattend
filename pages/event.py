@@ -517,7 +517,7 @@ if not df.empty:
 phe_duyet_label = f"Phê duyệt 🔴 {num_pending}" if num_pending > 0 else "Phê duyệt"
 
 menu_options = ["Dashboard", "Đăng ký", "Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI", phe_duyet_label, "Liên hệ"]
-selected_menu = st.sidebar.radio("MENU", menu_options)
+selected_menu = st.sidebar.radio("", menu_options)
 
 # Chuẩn hóa giá trị menu
 menu = "Phê duyệt" if selected_menu.startswith("Phê duyệt") else selected_menu
