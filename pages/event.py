@@ -622,6 +622,20 @@ if menu == "Dashboard":
             event_dates_for_stats.append(datetime.combine(cur_date, time(0, 0)))
             cur_date += timedelta(days=1)
 
+    calendar_custom_css = """
+        .fc-toolbar-title {
+            text-transform: capitalize !important;
+            font-size: 13px !important;
+            font-weight: 700 !important;
+            color: #1f2937 !important;
+        }
+        .fc-col-header-cell-cushion {
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            text-transform: capitalize !important;
+        }
+    """
+
     calendar_output = calendar(
         events=events,
         options={
@@ -635,6 +649,7 @@ if menu == "Dashboard":
             "displayEventTime": False,
             "headerToolbar": {"left": "prev,next", "center": "title", "right": "today"}
         },
+        custom_css=calendar_custom_css,
         key="ump_calendar"
     )
 
