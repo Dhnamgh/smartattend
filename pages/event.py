@@ -869,4 +869,4 @@ elif menu == "Liên hệ":
 (+84-28) 3855 8411 | hanhchinh@ump.edu.vn
 """)
 st.markdown("---")
-st.markdown("Copyright © 2026 Bản quyền thuộc về TS. Đào Hồng Nam - Phòng Hành chính Tổng hợp, Đại học Y Dược Thành phố Hồ Chí Minh")
+st.markdown("Copyright © 2026 Bản quyền thuộc về Phòng Hành chính Tổng hợp, Đại học Y Dược Thành phố Hồ Chí Minh")
