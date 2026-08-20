@@ -18,7 +18,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
+# Tự động mở trang Sự kiện làm mặc định khi truy cập app
+if "redirected_to_event" not in st.session_state:
+    st.session_state["redirected_to_event"] = True
+    st.switch_page("pages/event.py")
 # =============================== 2. CSS TRIỆT TIÊU HEADER & TỐI ƯU MENU 1 HÀNG ===============================
 st.markdown("""
 <style>
