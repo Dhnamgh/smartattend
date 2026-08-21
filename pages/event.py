@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from io import BytesIO
 
-st.set_page_config(page_title="APP QUẢN LÝ SỰ KIỆN UMP", page_icon="📅", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="APP QUẢN LÝ SỰ KIỆN UMP", page_icon="📅", layout="wide", initial_sidebar_state="expanded")
 
 # ==============================================================================
 # 1. GIAO DIỆN & CSS (TỐI ƯU TOÀN DIỆN CHO MOBILE RESPONSIVE)
