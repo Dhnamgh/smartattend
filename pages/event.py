@@ -658,30 +658,32 @@ if menu == "Dashboard":
             content_bang_dien_tu = val_bang_dt
 
         details_html = f"""
-        <div class="event-details-panel">
-            <div class="details-title">📋 Chi tiết sự kiện đã chọn trên lịch</div>
-            <div class="details-item"><span class="details-label">📌 Sự kiện:</span> {props['panel_event_title']}</div>
-            <div class="details-item"><span class="details-label">🏢 Đơn vị:</span> {props['panel_donvi']}</div>
-            <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
-            <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
-            <div class="details-item"><strong>Hỗ trợ:</strong> {props['panel_support_text'] or "Không yêu cầu"}</div>
-        """
-        val_thanh_phan = clean_text(props.get("panel_participants", "")) or clean_text(raw_row_data.get("thanh_phan", ""))
-        if val_thanh_phan:
-            tp_display = val_thanh_phan.replace("\n", "<br>")
-            details_html += f'<div class="details-item"><span class="details-label">👥 Thành phần:</span><br>{tp_display}</div>'
-        if content_bang_dien_tu:
-            details_html += f'<div class="details-item"><strong>Nội dung chạy bảng điện tử:</strong> <strong>{content_bang_dien_tu}</strong></div>'
+    <div class="event-details-panel">
+        <div class="details-title">📱 Chi tiết sự kiện đã chọn trên lịch</div>
+        <div class="details-item"><span class="details-label">📌 Sự kiện:</span> {props['panel_event_title']}</div>
+        <div class="details-item"><span class="details-label">🏛️ Đơn vị:</span> {props['panel_donvi']}</div>
+        <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
+        <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
+        <div class="details-item"><strong>Hỗ trợ:</strong> {props['panel_support_text'] or "Không yêu cầu"}</div>
+    """
 
-        if is_yes(props['panel_support_text']):
-            details_html += build_detailed_support_table_html(raw_row_data)
-            
-        details_html += "</div>"
-        st.markdown(details_html, unsafe_allow_html=True)
-        
-        if st.button("✖️ Đóng xem chi tiết"):
-            st.session_state.selected_event_details = None
-            st.rerun()
+    val_thanh_phan = clean_text(props.get("panel_participants", "")) or clean_text(raw_row_data.get("thanh_phan", ""))
+    if val_thanh_phan:
+        tp_display = val_thanh_phan.replace("\n", "<br>")
+        details_html += f'<div class="details-item"><span class="details-label">👥 Thành phần:</span><br>{tp_display}</div>'
+
+    if content_bang_dien_tu:
+        details_html += f'<div class="details-item"><strong>Nội dung chạy bảng điện tử:</strong> <strong>{content_bang_dien_tu}</strong></div>'
+
+    if is_yes(props['panel_support_text']):
+        details_html += build_detailed_support_table_html(raw_row_data)
+
+    details_html += "</div>"
+    st.markdown(details_html, unsafe_allow_html=True)
+
+    if st.button("✖ Đóng xem chi tiết"):
+        st.session_state.selected_event_details = None
+        st.rerun()
 
     st.subheader("📈 Tổng quan")
     week_start = (today - timedelta(days=today.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
