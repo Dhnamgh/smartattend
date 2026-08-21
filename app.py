@@ -11,16 +11,21 @@ from streamlit_js_eval import get_geolocation, streamlit_js_eval
 import firebase_admin
 from firebase_admin import credentials, db
 import sys
-# Tự động giải phóng bộ nhớ RAM các trang con để nạp code mới ngay khi F5
+import firebase_admin
+from firebase_admin import credentials, db
+import sys
+
+# Đảm bảo các dòng bên dưới sát lề trái 100%
 for mod in list(sys.modules.keys()):
     if any(k in mod for k in ["pages", "event", "ogsm"]):
         del sys.modules[mod]
-# =============================== 1. CẤU HÌNH GIAO DIỆN ===============================
+
+# ============================== 1. CẤU HÌNH GIAO DIỆN ==============================
 st.set_page_config(
     page_title="APP ĐIỂM DANH",
     page_icon="📍",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 # Tự động mở trang Sự kiện làm mặc định khi truy cập app
 if "redirected_to_event" not in st.session_state:
