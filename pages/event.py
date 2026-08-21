@@ -600,6 +600,7 @@ if menu == "Dashboard":
                     "panel_donvi": clean_text(r.get("donvi", "")),
                     "panel_location": location,
                     "panel_time_label": panel_time_label,
+                    "panel_participants": clean_text(r.get("thanh_phan", "")),
                     "panel_support_text": clean_text(r.get("support", "")),
                     "raw_row_data_json_string": event_raw_data_json_string
                 }
@@ -665,7 +666,10 @@ if menu == "Dashboard":
             <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
             <div class="details-item"><strong>Hỗ trợ:</strong> {props['panel_support_text'] or "Không yêu cầu"}</div>
         """
-        
+        val_thanh_phan = clean_text(props.get("panel_participants", "")) or clean_text(raw_row_data.get("thanh_phan", ""))
+        if val_thanh_phan:
+            tp_display = val_thanh_phan.replace("\n", "<br>")
+            details_html += f'<div class="details-item"><span class="details-label">👥 Thành phần:</span><br>{tp_display}</div>'
         if content_bang_dien_tu:
             details_html += f'<div class="details-item"><strong>Nội dung chạy bảng điện tử:</strong> <strong>{content_bang_dien_tu}</strong></div>'
 
@@ -713,7 +717,12 @@ elif menu == "Đăng ký":
         f1, f2 = st.columns(2)
         with f1: event_name, donvi = st.text_input("Tên sự kiện"), st.text_input("Đơn vị phụ trách/tổ chức")
         with f2: location, nguoi_phu_trach, nguoi_dang_ky, email = st.text_input("Địa điểm"), st.text_input("Người phụ trách"), st.text_input("Người đăng ký"), st.text_input("Email")
-        
+        # Thêm ô nhập Thành phần tham dự vào form
+    thanh_phan = st.text_area(
+        "Thành phần tham dự:",
+        placeholder="Ví dụ:\n- Ban Giám hiệu ĐHYD\n- Trưởng, Phó trưởng các phòng chức năng...",
+        height=100
+    )
         support_ban_don_tiep, support_khan_ban, support_le_tan, support_bang_ten, support_bia_ky_ket, support_nuoc_uong, support_teabreak, support_hoa_ban, support_hoa_buc, support_hoa_tang, support_qua_tang, support_brochure, support_khay_bung, support_bandroll_standee, support_backdrop, support_bang_dien_tu, noi_dung_bang_dien_tu, support_thu_moi, support_khac = 0, "KHÔNG", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "", "KHÔNG", "", "KHÔNG", ""
         if support_flag == "CÓ":
             st.markdown('<div class="table-title">Nội dung hỗ trợ từ Phòng HCTH</div>', unsafe_allow_html=True)
