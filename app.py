@@ -476,11 +476,17 @@ with tabs[0]:
         detected_campus_info = CAMPUSES.get(final_campus_key) if final_campus_key else None
         curr_dist = distances.get(final_campus_key, 0.0) if final_campus_key else 0.0
 
-        if detected_campus_info and curr_dist <= MAX_ALLOWED_RADIUS:
+        if user_lat is None or user_lng is None:
+        # Trường hợp 1: Đang chờ trình duyệt phản hồi GPS
+        campus_display_name = "Đang chờ GPS..."
+        st.info("⏳ Đang định vị GPS, vui lòng đợi vài giây và bấm 'Cho phép' trên trình duyệt...")
+        elif detected_campus_info and curr_dist <= MAX_ALLOWED_RADIUS:
+            # Trường hợp 2: Đã lấy được GPS và nằm đúng trong bán kính cơ sở
             campus_display_name = f"{detected_campus_info['name']} ({detected_campus_info['address']})"
             st.success(f"Đã chọn: **{detected_campus_info['name']}**")
-            st.info("✅ Vị trí GPS hợp lệ (Đã xác thực trong khu vực)")
+            st.info(f"✅ Vị trí GPS hợp lệ (Cách cơ sở ~{int(curr_dist)}m)")
         else:
+            # Trường hợp 3: Đã lấy được GPS nhưng thực sự ở ngoài vùng
             campus_display_name = "Không xác định"
             st.markdown('<div class="status-box-error">❌ Cảnh báo: Vị trí GPS không hợp lệ (Ngoài phạm vi quy định)!</div>', unsafe_allow_html=True)
 
