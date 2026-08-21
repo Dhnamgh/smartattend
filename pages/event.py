@@ -15,12 +15,63 @@ from io import BytesIO
 
 st.set_page_config(page_title="APP QUẢN LÝ SỰ KIỆN UMP", page_icon="📅", layout="wide", initial_sidebar_state="expanded")
 
+# Danh mục đơn vị lớn cấp 1 chuẩn hóa rút gọn
+DANH_MUC_DON_VI_LON = [
+    # Lãnh đạo & Tổ chức chính trị - xã hội
+    "Đảng ủy",
+    "Ban Giám hiệu",
+    "Công đoàn",
+    "Đoàn TN - Hội SV",
+    "HĐ Khoa học - Đào tạo",
+
+    # 11 Phòng chức năng
+    "P. Hành chính Tổng hợp",
+    "P. Tổ chức Cán bộ",
+    "P. Hợp tác Quốc tế",
+    "P. Đào tạo Đại học",
+    "P. Công tác Sinh viên",
+    "P. Đào tạo Sau Đại học",
+    "P. Khoa học Công nghệ",
+    "P. Quản trị Giáo tài",
+    "P. Thanh tra - Pháp chế",
+    "P. ĐBCLGD & KT",
+    "P. Kế hoạch Tài chính",
+
+    # 07 Đơn vị đào tạo
+    "Trường Y",
+    "Trường Dược",
+    "Trường ĐD-KTYH",
+    "Khoa Răng Hàm Mặt",
+    "Khoa Y tế Công cộng",
+    "Khoa Y học Cổ truyền",
+    "Khoa Khoa học Cơ bản",
+
+    # 02 Đơn vị Khám, chữa bệnh
+    "Bệnh viện ĐHYD TPHCM",
+    "Phòng khám chuyên khoa RHM",
+
+    # 06 Trung tâm (Đã loại bỏ TT. Phẫu thuật thực nghiệm)
+    "TT. Kiểm chuẩn CL XNYH",
+    "TT. Đào tạo NL theo NCXH",
+    "TT. Công nghệ thông tin",
+    "TT. KHCN UMP",
+    "TT. Giáo dục Y học",
+    "TT. Y sinh học phân tử",
+
+    # 03 Đơn vị khác
+    "Thư viện",
+    "Ký túc xá",
+    "Tạp chí Y học TPHCM",
+    
+    "Khác"
+]
+
 # ==============================================================================
 # 1. GIAO DIỆN & CSS (TỐI ƯU TOÀN DIỆN CHO MOBILE RESPONSIVE)
 # ==============================================================================
 st.markdown("""
 <style>
-/* CSS 3 Nút Menu điều hướng trên cùng (1 hàng ngang cố định trên mobile) */
+/* CSS 3 Nút Menu điều hướng trên cùng */
 .top-nav-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -190,7 +241,7 @@ def event_color(index, key):
     digest = int(hashlib.md5(str(key).encode("utf-8")).hexdigest(), 16)
     return palette[(digest + index) % len(palette)]
 
-def wrap_label(text, width=28):
+def wrap_label(text, width=26):
     words, lines, line = str(text).split(), [], ""
     for w in words:
         if len(line + " " + w) <= width: line = (line + " " + w).strip()
@@ -199,6 +250,19 @@ def wrap_label(text, width=28):
             line = w
     if line: lines.append(line)
     return "<br>".join(lines)
+
+def extract_parent_donvi(donvi_text):
+    """Trích xuất đơn vị lớn chuẩn hóa từ chuỗi Đơn vị"""
+    txt = clean_text(donvi_text)
+    if not txt: return "Khác"
+    if " - " in txt:
+        parent = txt.split(" - ")[0].strip()
+        if parent in DANH_MUC_DON_VI_LON:
+            return parent
+    for dv in DANH_MUC_DON_VI_LON:
+        if dv != "Khác" and dv.lower() in txt.lower():
+            return dv
+    return txt
 
 def get_period_df(df_input, period):
     now = datetime.today()
@@ -372,6 +436,8 @@ def process_raw_dataframe(df_raw):
     for col in ["item_id", "event", "donvi", "location", "support", "nguoi_phu_trach", "nguoi_dang_ky", "email", "approval_opinion", "thanh_phan"]:
         if col not in df.columns: df[col] = ""
         df[col] = df[col].apply(clean_text)
+        
+    df["donvi_parent"] = df["donvi"].apply(extract_parent_donvi)
     return df
 
 @st.cache_data(ttl=15)
@@ -524,15 +590,14 @@ phe_duyet_label = f"Phê duyệt 🔴 {num_pending}" if num_pending > 0 else "Ph
 menu_options = ["Dashboard", "Đăng ký", "Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI", phe_duyet_label, "Liên hệ"]
 selected_menu = st.sidebar.radio("", menu_options, label_visibility="collapsed")
 
-# Chuẩn hóa giá trị menu
 menu = "Phê duyệt" if selected_menu.startswith("Phê duyệt") else selected_menu
-if not df.empty and "donvi" in df.columns:
-    df["donvi"] = df["donvi"].replace({"Khoa Y": "Trường Y"})
-donvi_list = sorted(df["donvi"].dropna().unique()) if not df.empty else []
-selected = st.sidebar.multiselect("Chọn đơn vị", ["Toàn trường"] + list(donvi_list), default=["Toàn trường"])
+
+# Danh sách lọc đơn vị lớn ở sidebar
+donvi_parent_list = sorted([d for d in df["donvi_parent"].dropna().unique() if d]) if not df.empty else []
+selected = st.sidebar.multiselect("Chọn đơn vị", ["Toàn trường"] + list(donvi_parent_list), default=["Toàn trường"])
 st.sidebar.write("✅ Đang chọn:", ", ".join(selected))
 
-df_f = df if "Toàn trường" in selected or df.empty else df[df["donvi"].isin(selected)]
+df_f = df if "Toàn trường" in selected or df.empty else df[df["donvi_parent"].isin(selected)]
 
 def enforce_menu_access(menu_name):
     if menu_name in ["Dashboard", "Liên hệ"]: return True
@@ -557,7 +622,7 @@ def enforce_menu_access(menu_name):
 if menu == "Dashboard":
     try:
         fresh_df = load_data_no_cache()
-        fresh_df = fresh_df if "Toàn trường" in selected or fresh_df.empty else fresh_df[fresh_df["donvi"].isin(selected)]
+        fresh_df = fresh_df if "Toàn trường" in selected or fresh_df.empty else fresh_df[fresh_df["donvi_parent"].isin(selected)]
         df_dash = keep_only_thong_nhat_for_calendar(fresh_df)
     except Exception:
         df_dash = keep_only_thong_nhat_for_calendar(df_f)
@@ -717,10 +782,18 @@ elif menu == "Đăng ký":
 
     with st.form("registration_form", clear_on_submit=True):
         f1, f2 = st.columns(2)
-        with f1: event_name, donvi = st.text_input("Tên sự kiện"), st.text_input("Đơn vị phụ trách/tổ chức")
-        with f2: location, nguoi_phu_trach, nguoi_dang_ky, email = st.text_input("Địa điểm"), st.text_input("Người phụ trách"), st.text_input("Người đăng ký"), st.text_input("Email")
+        with f1: 
+            event_name = st.text_input("Tên sự kiện")
+            donvi_lon = st.selectbox("Đơn vị lớn phụ trách/tổ chức", DANH_MUC_DON_VI_LON)
+            bomon_to = st.text_input("Bộ môn / Tổ / Cơ sở trực thuộc (nếu có)", placeholder="Ví dụ: Cơ sở 1, Bộ môn Dược lý, Tổ Lễ tân...")
+            
+        with f2: 
+            location = st.text_input("Địa điểm")
+            nguoi_phu_trach = st.text_input("Người phụ trách")
+            nguoi_dang_ky = st.text_input("Người đăng ký")
+            email = st.text_input("Email")
         
-        # Thêm ô nhập Thành phần tham dự vào form
+        # Ô nhập Thành phần tham dự
         thanh_phan = st.text_area(
             "Thành phần tham dự:",
             placeholder="Ví dụ:\n- Ban Giám hiệu ĐHYD\n- Trưởng, Phó trưởng các phòng chức năng...",
@@ -757,23 +830,25 @@ elif menu == "Đăng ký":
         submitted = st.form_submit_button("Gửi đăng ký")
 
     if submitted:
-        if not event_name or not donvi or not location: st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
+        if not event_name or not donvi_lon or not location: st.error("Vui lòng nhập tối thiểu: Tên sự kiện, Đơn vị và Địa điểm.")
         else:
             with st.spinner("Đang lưu sự kiện..."):
+                donvi_display = f"{donvi_lon} - {bomon_to.strip()}" if bomon_to.strip() else donvi_lon
+                
                 df_excel = read_onedrive_excel()
                 if df_excel.empty: st.error("Không thể kết nối đọc file OneDrive!")
                 else:
                     valid_ids = pd.to_numeric(df_excel["Id"], errors="coerce").dropna()
                     next_id = int(valid_ids.max() + 1) if not valid_ids.empty else 1
                     new_row = {col: None for col in df_excel.columns}
-                    new_row["Id"], new_row["Thời gian bắt đầu"], new_row["Email"], new_row["Tên"], new_row["Đơn vị phụ trách/ tổ chức"], new_row["Tên sự kiện"], new_row["Ngày tổ chức"], new_row["Giờ bắt đầu"], new_row["Giờ kết thúc"], new_row["Ngày kết thúc"], new_row["Địa điểm tổ chức"], new_row["Thông tin người phụ trách"], new_row["Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp"] = next_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), email, nguoi_dang_ky, donvi, event_name, start_date.strftime("%Y-%m-%d"), start_time.strftime("%H:%M"), end_time.strftime("%H:%M"), end_date.strftime("%Y-%m-%d"), location, nguoi_phu_trach, support_flag
+                    new_row["Id"], new_row["Thời gian bắt đầu"], new_row["Email"], new_row["Tên"], new_row["Đơn vị phụ trách/ tổ chức"], new_row["Tên sự kiện"], new_row["Ngày tổ chức"], new_row["Giờ bắt đầu"], new_row["Giờ kết thúc"], new_row["Ngày kết thúc"], new_row["Địa điểm tổ chức"], new_row["Thông tin người phụ trách"], new_row["Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp"] = next_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), email, nguoi_dang_ky, donvi_display, event_name, start_date.strftime("%Y-%m-%d"), start_time.strftime("%H:%M"), end_time.strftime("%H:%M"), end_date.strftime("%Y-%m-%d"), location, nguoi_phu_trach, support_flag
                     
                     new_row["Số lượng bàn đón tiếp"], new_row["Cần trải khăn bàn hội trường"], new_row["Số lượng lễ tân"], new_row["Số lượng bảng tên (bảng mica)"], new_row["Số lượng bìa ký kết"], new_row["Số lượng nước uống"], new_row["Số phần Teabreak"], new_row["Số lượng hoa để bàn"], new_row["Số lượng hoa để bục phát biểu"], new_row["Số lượng hoa bó để tặng"], new_row["Số lượng quà tặng"], new_row["Số lượng Brochure"], new_row["Số lượng khay bưng"], new_row["Số lượng bandroll, standee cần in và thi công"], new_row["Số lượng Backdrop cần in và thi công"], new_row["Cần chạy bảng điện tử"], new_row["Nội dung chạy bảng điện tử (nếu có)"], new_row["Cần gửi thư mời"], new_row["Các yêu cầu khác (nếu có)"] = support_ban_don_tiep, support_khan_ban, support_le_tan, support_bang_ten, support_bia_ky_ket, support_nuoc_uong, support_teabreak, support_hoa_ban, support_hoa_buc, support_hoa_tang, support_qua_tang, support_brochure, support_khay_bung, support_bandroll_standee, support_backdrop, support_bang_dien_tu, noi_dung_bang_dien_tu, support_thu_moi, support_khac
                     
                     new_row["thanh_phan"] = thanh_phan.strip()
                     
                     if save_onedrive_excel(pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)):
-                        send_notification_email(event_name, donvi, datetime.combine(start_date, start_time), location)
+                        send_notification_email(event_name, donvi_display, datetime.combine(start_date, start_time), location)
                         st.session_state["approval_msg"] = f"🎉 Đăng ký thành công ID {next_id}! Đợi duyệt. Kết quả sẽ hiện trên Dashboard Lịch sau khi duyệt."
                         st.rerun()
 
@@ -782,16 +857,35 @@ elif menu in ["Báo cáo", "Cảnh báo", "Hỗ trợ", "Truy vấn AI"]:
     if not enforce_menu_access(menu): st.stop()
     
     if menu == "Báo cáo":
-        st.markdown('<div class="table-title">📊 Báo cáo</div>', unsafe_allow_html=True)
+        st.markdown('<div class="table-title">📊 Báo cáo thống kê</div>', unsafe_allow_html=True)
         report_period = st.radio("Kỳ báo cáo", ["Tuần", "Tháng", "Năm"], horizontal=True, label_visibility="collapsed")
         df_report, label, _, _ = get_period_df(df_f, report_period)
         if len(df_report) > 0:
-            summary = df_report.groupby("donvi").size().reset_index(name="Sự kiện")
-            summary["Đơn vị"] = summary["donvi"].apply(lambda x: wrap_label(x, 20))
-            st.plotly_chart(px.bar(summary, x="Sự kiện", y="Đơn vị", text="Sự kiện", orientation="h"), use_container_width=True)
-            table_r = summary[["donvi", "Sự kiện"]].rename(columns={"donvi": "Đơn vị"}).reset_index(drop=True)
+            summary = df_report.groupby("donvi_parent").size().reset_index(name="Sự kiện")
+            summary = summary.sort_values("Sự kiện", ascending=True)
+            summary["Đơn vị"] = summary["donvi_parent"].apply(lambda x: wrap_label(x, 26))
+            
+            # Tự động co giãn chiều cao biểu đồ không bị đè chữ
+            chart_height = max(400, len(summary) * 35)
+            
+            fig = px.bar(
+                summary, 
+                x="Sự kiện", 
+                y="Đơn vị", 
+                text="Sự kiện", 
+                orientation="h",
+                height=chart_height
+            )
+            fig.update_layout(
+                yaxis_title="", 
+                xaxis_title="Số lượng sự kiện",
+                margin=dict(l=10, r=20, t=20, b=20)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            table_r = summary[["donvi_parent", "Sự kiện"]].rename(columns={"donvi_parent": "Đơn vị"}).sort_values("Sự kiện", ascending=False).reset_index(drop=True)
             table_r.insert(0, "STT", table_r.index + 1)
-            show_table_with_download(f"{label}", table_r, f"bc_{report_period}.xlsx", compact=True)
+            show_table_with_download(f"Bảng thống kê theo đơn vị ({label})", table_r, f"bc_{report_period}.xlsx", compact=True)
         else: st.info(f"Không có dữ liệu {label}.")
         
     elif menu == "Cảnh báo":
