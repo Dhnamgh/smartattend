@@ -11,11 +11,8 @@ from streamlit_js_eval import get_geolocation, streamlit_js_eval
 import firebase_admin
 from firebase_admin import credentials, db
 import sys
-import firebase_admin
-from firebase_admin import credentials, db
-import sys
 
-# Đảm bảo các dòng bên dưới sát lề trái 100%
+# Xóa cache module các trang con trong RAM để tự cập nhật code mới khi F5
 for mod in list(sys.modules.keys()):
     if any(k in mod for k in ["pages", "event", "ogsm"]):
         del sys.modules[mod]
@@ -27,6 +24,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Tự động làm mới cache dữ liệu khi người dùng truy cập
+st.cache_data.clear()
+
 # Tự động mở trang Sự kiện làm mặc định khi truy cập app
 if "redirected_to_event" not in st.session_state:
     st.session_state["redirected_to_event"] = True
