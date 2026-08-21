@@ -369,7 +369,7 @@ def process_raw_dataframe(df_raw):
         t2 = parse_time(df.at[i, "end_time"] if "end_time" in df.columns else None)
         if t2 and pd.notna(df.at[i, "end"]): df.at[i, "end"] = df.at[i, "end"].replace(hour=t2[0], minute=t2[1])
 
-    for col in ["item_id", "event", "donvi", "location", "support", "nguoi_phu_trach", "nguoi_dang_ky", "email", "approval_opinion"]:
+    for col in ["item_id", "event", "donvi", "location", "support", "nguoi_phu_trach", "nguoi_dang_ky", "email", "approval_opinion", "thanh_phan"]:
         if col not in df.columns: df[col] = ""
         df[col] = df[col].apply(clean_text)
     return df
@@ -658,32 +658,32 @@ if menu == "Dashboard":
             content_bang_dien_tu = val_bang_dt
 
         details_html = f"""
-    <div class="event-details-panel">
-        <div class="details-title">📱 Chi tiết sự kiện đã chọn trên lịch</div>
-        <div class="details-item"><span class="details-label">📌 Sự kiện:</span> {props['panel_event_title']}</div>
-        <div class="details-item"><span class="details-label">🏛️ Đơn vị:</span> {props['panel_donvi']}</div>
-        <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
-        <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
-        <div class="details-item"><strong>Hỗ trợ:</strong> {props['panel_support_text'] or "Không yêu cầu"}</div>
-    """
+        <div class="event-details-panel">
+            <div class="details-title">📱 Chi tiết sự kiện đã chọn trên lịch</div>
+            <div class="details-item"><span class="details-label">📌 Sự kiện:</span> {props['panel_event_title']}</div>
+            <div class="details-item"><span class="details-label">🏛️ Đơn vị:</span> {props['panel_donvi']}</div>
+            <div class="details-item"><span class="details-label">📍 Địa điểm:</span> {props['panel_location']}</div>
+            <div class="details-item"><span class="details-label">🕒 Thời gian:</span> {props['panel_time_label']}</div>
+            <div class="details-item"><strong>Hỗ trợ:</strong> {props['panel_support_text'] or "Không yêu cầu"}</div>
+        """
 
-    val_thanh_phan = clean_text(props.get("panel_participants", "")) or clean_text(raw_row_data.get("thanh_phan", ""))
-    if val_thanh_phan:
-        tp_display = val_thanh_phan.replace("\n", "<br>")
-        details_html += f'<div class="details-item"><span class="details-label">👥 Thành phần:</span><br>{tp_display}</div>'
+        val_thanh_phan = clean_text(props.get("panel_participants", "")) or clean_text(raw_row_data.get("thanh_phan", ""))
+        if val_thanh_phan:
+            tp_display = val_thanh_phan.replace("\n", "<br>")
+            details_html += f'<div class="details-item"><span class="details-label">👥 Thành phần:</span><br>{tp_display}</div>'
 
-    if content_bang_dien_tu:
-        details_html += f'<div class="details-item"><strong>Nội dung chạy bảng điện tử:</strong> <strong>{content_bang_dien_tu}</strong></div>'
+        if content_bang_dien_tu:
+            details_html += f'<div class="details-item"><strong>Nội dung chạy bảng điện tử:</strong> <strong>{content_bang_dien_tu}</strong></div>'
 
-    if is_yes(props['panel_support_text']):
-        details_html += build_detailed_support_table_html(raw_row_data)
+        if is_yes(props['panel_support_text']):
+            details_html += build_detailed_support_table_html(raw_row_data)
 
-    details_html += "</div>"
-    st.markdown(details_html, unsafe_allow_html=True)
+        details_html += "</div>"
+        st.markdown(details_html, unsafe_allow_html=True)
 
-    if st.button("✖ Đóng xem chi tiết"):
-        st.session_state.selected_event_details = None
-        st.rerun()
+        if st.button("✖ Đóng xem chi tiết"):
+            st.session_state.selected_event_details = None
+            st.rerun()
 
     st.subheader("📈 Tổng quan")
     week_start = (today - timedelta(days=today.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -719,12 +719,14 @@ elif menu == "Đăng ký":
         f1, f2 = st.columns(2)
         with f1: event_name, donvi = st.text_input("Tên sự kiện"), st.text_input("Đơn vị phụ trách/tổ chức")
         with f2: location, nguoi_phu_trach, nguoi_dang_ky, email = st.text_input("Địa điểm"), st.text_input("Người phụ trách"), st.text_input("Người đăng ký"), st.text_input("Email")
+        
         # Thêm ô nhập Thành phần tham dự vào form
-    thanh_phan = st.text_area(
-        "Thành phần tham dự:",
-        placeholder="Ví dụ:\n- Ban Giám hiệu ĐHYD\n- Trưởng, Phó trưởng các phòng chức năng...",
-        height=100
-    )
+        thanh_phan = st.text_area(
+            "Thành phần tham dự:",
+            placeholder="Ví dụ:\n- Ban Giám hiệu ĐHYD\n- Trưởng, Phó trưởng các phòng chức năng...",
+            height=100
+        )
+        
         support_ban_don_tiep, support_khan_ban, support_le_tan, support_bang_ten, support_bia_ky_ket, support_nuoc_uong, support_teabreak, support_hoa_ban, support_hoa_buc, support_hoa_tang, support_qua_tang, support_brochure, support_khay_bung, support_bandroll_standee, support_backdrop, support_bang_dien_tu, noi_dung_bang_dien_tu, support_thu_moi, support_khac = 0, "KHÔNG", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, "", "", "KHÔNG", "", "KHÔNG", ""
         if support_flag == "CÓ":
             st.markdown('<div class="table-title">Nội dung hỗ trợ từ Phòng HCTH</div>', unsafe_allow_html=True)
@@ -767,6 +769,8 @@ elif menu == "Đăng ký":
                     new_row["Id"], new_row["Thời gian bắt đầu"], new_row["Email"], new_row["Tên"], new_row["Đơn vị phụ trách/ tổ chức"], new_row["Tên sự kiện"], new_row["Ngày tổ chức"], new_row["Giờ bắt đầu"], new_row["Giờ kết thúc"], new_row["Ngày kết thúc"], new_row["Địa điểm tổ chức"], new_row["Thông tin người phụ trách"], new_row["Một số ĐỀ XUẤT HỖ TRỢ từ phòng Hành chính Tổng hợp"] = next_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), email, nguoi_dang_ky, donvi, event_name, start_date.strftime("%Y-%m-%d"), start_time.strftime("%H:%M"), end_time.strftime("%H:%M"), end_date.strftime("%Y-%m-%d"), location, nguoi_phu_trach, support_flag
                     
                     new_row["Số lượng bàn đón tiếp"], new_row["Cần trải khăn bàn hội trường"], new_row["Số lượng lễ tân"], new_row["Số lượng bảng tên (bảng mica)"], new_row["Số lượng bìa ký kết"], new_row["Số lượng nước uống"], new_row["Số phần Teabreak"], new_row["Số lượng hoa để bàn"], new_row["Số lượng hoa để bục phát biểu"], new_row["Số lượng hoa bó để tặng"], new_row["Số lượng quà tặng"], new_row["Số lượng Brochure"], new_row["Số lượng khay bưng"], new_row["Số lượng bandroll, standee cần in và thi công"], new_row["Số lượng Backdrop cần in và thi công"], new_row["Cần chạy bảng điện tử"], new_row["Nội dung chạy bảng điện tử (nếu có)"], new_row["Cần gửi thư mời"], new_row["Các yêu cầu khác (nếu có)"] = support_ban_don_tiep, support_khan_ban, support_le_tan, support_bang_ten, support_bia_ky_ket, support_nuoc_uong, support_teabreak, support_hoa_ban, support_hoa_buc, support_hoa_tang, support_qua_tang, support_brochure, support_khay_bung, support_bandroll_standee, support_backdrop, support_bang_dien_tu, noi_dung_bang_dien_tu, support_thu_moi, support_khac
+                    
+                    new_row["thanh_phan"] = thanh_phan.strip()
                     
                     if save_onedrive_excel(pd.concat([df_excel, pd.DataFrame([new_row])], ignore_index=True)):
                         send_notification_email(event_name, donvi, datetime.combine(start_date, start_time), location)
