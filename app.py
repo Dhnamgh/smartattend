@@ -10,7 +10,11 @@ import plotly.express as px
 from streamlit_js_eval import get_geolocation, streamlit_js_eval
 import firebase_admin
 from firebase_admin import credentials, db
-
+import sys
+# Tự động giải phóng bộ nhớ RAM các trang con để nạp code mới ngay khi F5
+for mod in list(sys.modules.keys()):
+    if any(k in mod for k in ["pages", "event", "ogsm"]):
+        del sys.modules[mod]
 # =============================== 1. CẤU HÌNH GIAO DIỆN ===============================
 st.set_page_config(
     page_title="APP ĐIỂM DANH",
